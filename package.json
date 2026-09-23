@@ -1,0 +1,83 @@
+{
+  "name": "aster-browser",
+  "version": "0.4.2",
+  "description": "A calm, extension-capable Chromium browser for macOS.",
+  "author": "Aster",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/c28aa1-rgb/Aster.git"
+  },
+  "license": "GPL-3.0-only",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "build:extension-runtime": "node scripts/build-extension-runtime.cjs",
+    "build:preload": "esbuild electron/preload.src.cjs --bundle --platform=node --format=cjs --external:electron --outfile=electron/preload.cjs && npm run build:extension-runtime",
+    "dev": "npm run build:preload && concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5187 && electron .\"",
+    "build": "npm run build:preload && vite build",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder --mac",
+    "release": "npm run build && electron-builder --mac --publish always",
+    "test:extension": "electron test/extension-smoke.cjs",
+    "test:web-store": "electron test/web-store-smoke.cjs",
+    "test:browser-action": "npm run build:preload && electron test/browser-action-smoke.cjs",
+    "test:overlay": "node test/packaged-overlay-smoke.mjs",
+    "test:vpn-api": "npm run build:extension-runtime && electron test/vpn-api-smoke.cjs",
+    "test:vpn-extension": "npm run build:extension-runtime && electron test/vpn-extension-smoke.cjs"
+  },
+  "dependencies": {
+    "electron-chrome-extensions": "^4.9.0",
+    "electron-chrome-web-store": "^0.13.0",
+    "electron-updater": "^6.8.9",
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.544.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "electron": "^38.1.2",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.10",
+    "vite": "^7.1.5",
+    "wait-on": "^8.0.4"
+  },
+  "overrides": {
+    "adm-zip": "0.6.0"
+  },
+  "build": {
+    "appId": "com.aster.browser",
+    "productName": "Aster",
+    "directories": {
+      "output": "artifacts"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "LICENSE",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "artifactName": "Aster-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "background": "build/dmg-background.png",
+      "window": {
+        "width": 820,
+        "height": 600
+      },
+      "contents": [
+        { "x": 165, "y": 365, "type": "file" },
+        { "x": 655, "y": 365, "type": "file", "path": "build/Run After Moving Aster.command" }
+      ]
+    }
+  }
+}

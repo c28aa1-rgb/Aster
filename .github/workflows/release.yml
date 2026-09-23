@@ -1,0 +1,33 @@
+name: Publish macOS release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Verify release tag matches app version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          APP_VERSION="v$(node -p "require('./package.json').version")"
+          test "$RELEASE_TAG" = "$APP_VERSION" || (echo "Tag $RELEASE_TAG must match package version $APP_VERSION" && exit 1)
+      - run: npm ci
+      - name: Build and publish macOS download
+        run: npm run release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional. Needed for notarized distribution and reliable in-app updates.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}

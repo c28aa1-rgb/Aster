@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Aster VPN API fixture",
+  "version": "1.0.0",
+  "permissions": ["proxy", "webRequest", "webRequestAuthProvider"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
