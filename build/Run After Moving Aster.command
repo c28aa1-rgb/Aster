@@ -39,5 +39,3 @@ if ! /usr/bin/open "$app_path"; then
   show_message "Quarantine was removed, but macOS couldn't open Aster. Open Aster.app from your Desktop."
   exit 1
 fi
-
-show_message "Aster is open."

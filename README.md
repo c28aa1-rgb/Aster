@@ -17,7 +17,7 @@ npm run dist
 
 The packaged `.dmg` and `.zip` are written to `artifacts/` (`dist/` is reserved for the renderer build).
 
-For the DMG install, drag `Aster.app` out of the mounted image to your **Desktop**, then run **Run After Moving Aster.command**. The helper looks for `~/Desktop/Aster.app`, verifies its bundle ID, explains the quarantine change, and only proceeds after confirmation. macOS may require you to right-click the helper and choose **Open** before it runs. It does not sign or notarize Aster. The ZIP remains unchanged.
+For the DMG install, drag `Aster.app` out of the mounted image to your **Desktop**, then run **Run After Moving Aster.command**. The helper looks for `~/Desktop/Aster.app`, verifies its bundle ID, asks before removing quarantine, and opens the app without a final success popup. macOS may require you to right-click the helper and choose **Open** before it runs. It does not sign or notarize Aster. The ZIP remains unchanged.
 
 ## Releasing updates
 

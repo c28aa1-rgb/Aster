@@ -28,6 +28,5 @@ jobs:
         run: npm run release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Optional. Needed for notarized distribution and reliable in-app updates.
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Publish an unsigned download unless signing is configured deliberately.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
