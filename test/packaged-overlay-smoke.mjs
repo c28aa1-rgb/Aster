@@ -5,7 +5,7 @@ import path from "node:path";
 
 const port = 9300 + (process.pid % 500);
 const profilePath = path.join(os.tmpdir(), `aster-overlay-smoke-${process.pid}`);
-const executable = path.resolve(`dist/mac-${process.arch}/Aster.app/Contents/MacOS/Aster`);
+const executable = path.resolve(`artifacts/mac-${process.arch}/Aster.app/Contents/MacOS/Aster`);
 const child = spawn(executable, [
   `--remote-debugging-port=${port}`,
   `--user-data-dir=${profilePath}`,
@@ -106,7 +106,18 @@ try {
     return state.tabs === 2 && !state.panel && state.firstSelected === "true" ? state : null;
   }, "Switching tabs left the Extensions panel open");
 
-  console.log(`OVERLAY_SMOKE_OK ${JSON.stringify({ plusResult, tabSwitchResult })}`);
+  await evaluate(client, `document.querySelectorAll('.tab-close')[1].click()`);
+  await waitFor(
+    () => evaluate(client, `document.querySelectorAll('[role="tab"]').length === 1`),
+    "Closing a tab did not leave one tab",
+  );
+  await evaluate(client, `document.querySelector('.tab-close').click()`);
+  const lastTabResult = await waitFor(async () => {
+    const state = await evaluate(client, `({ tabs: document.querySelectorAll('[role="tab"]').length, title: document.querySelector('.tab-title')?.textContent, focused: document.activeElement?.getAttribute('aria-label') })`);
+    return state.tabs === 1 && state.title === "New tab" && state.focused === "Search or enter an address" ? state : null;
+  }, "Closing the last tab did not open and focus a replacement tab");
+
+  console.log(`OVERLAY_SMOKE_OK ${JSON.stringify({ plusResult, tabSwitchResult, lastTabResult })}`);
 } catch (error) {
   console.error("OVERLAY_SMOKE_FAILED", error, output);
   process.exitCode = 1;

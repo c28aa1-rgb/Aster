@@ -85,6 +85,8 @@ button { color: inherit; }
 
 .tab {
   position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
   width: clamp(156px, 16vw, 228px);
   min-width: 132px;
   height: 40px;

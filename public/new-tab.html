@@ -34,8 +34,8 @@
       <div class="mark">Aster observatory</div>
       <h1>Where next?</h1>
       <p class="time" id="time"></p>
-      <form id="search">
-        <input id="query" autocomplete="off" placeholder="Search the web" aria-label="Search the web" />
+      <form id="search" action="https://www.google.com/search" method="get">
+        <input id="query" name="q" type="search" autocomplete="off" placeholder="Search the web" aria-label="Search the web" required />
         <button type="submit" aria-label="Search">↗</button>
       </form>
       <p class="note">Your extensions are ready in every tab.</p>
@@ -43,11 +43,6 @@
     <script>
       const clock = document.getElementById("time");
       clock.textContent = new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric" }).format(new Date());
-      document.getElementById("search").addEventListener("submit", (event) => {
-        event.preventDefault();
-        const value = document.getElementById("query").value.trim();
-        if (value) location.href = `https://www.google.com/search?q=${encodeURIComponent(value)}`;
-      });
     </script>
   </body>
 </html>

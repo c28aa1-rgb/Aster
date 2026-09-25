@@ -1,6 +1,6 @@
 {
   "name": "aster-browser",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "A calm, extension-capable Chromium browser for macOS.",
   "author": "Aster",
   "repository": {
@@ -22,6 +22,7 @@
     "test:web-store": "electron test/web-store-smoke.cjs",
     "test:browser-action": "npm run build:preload && electron test/browser-action-smoke.cjs",
     "test:overlay": "node test/packaged-overlay-smoke.mjs",
+    "test:new-tab": "electron test/new-tab-smoke.cjs",
     "test:vpn-api": "npm run build:extension-runtime && electron test/vpn-api-smoke.cjs",
     "test:vpn-extension": "npm run build:extension-runtime && electron test/vpn-extension-smoke.cjs"
   },
@@ -37,7 +38,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.2",
     "concurrently": "^9.2.1",
-    "electron": "^38.1.2",
+    "electron": "^44.4.5",
     "electron-builder": "^26.0.12",
     "esbuild": "^0.25.10",
     "vite": "^7.1.5",
@@ -75,8 +76,17 @@
         "height": 600
       },
       "contents": [
-        { "x": 165, "y": 365, "type": "file" },
-        { "x": 655, "y": 365, "type": "file", "path": "build/Run After Moving Aster.command" }
+        {
+          "x": 165,
+          "y": 365,
+          "type": "file"
+        },
+        {
+          "x": 655,
+          "y": 365,
+          "type": "file",
+          "path": "build/Install Aster.html"
+        }
       ]
     }
   }

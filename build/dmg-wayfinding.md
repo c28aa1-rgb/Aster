@@ -1,9 +1,9 @@
-# Visible Sequence
+# Quiet Orbit
 
-The composition treats installation as a small act of navigation. Aster begins in the mounted image, crosses its edge, and settles on the user's Desktop; only then does the helper become relevant. A quiet left-to-right rhythm carries that order without pretending the illustrated path is a clickable destination.
+The image treats first launch as a short orbital maneuver. Aster leaves the mounted disk and lands on the Desktop. Deep navy space and a warm stellar accent create a calm field, while a quiet horizon keeps Finder's real file icons prominent. The result should feel meticulously crafted, as though every interval were considered with care.
 
-Paper white and mineral gray hold the field open. Slate carries the instructions; muted blue-gray traces the move; a small brass point marks the beginning. The orbital reference stays faint and measured, echoing Aster's observatory identity without competing with the Finder icons.
+Form carries the sequence through one horizontal path. The two numbered labels sit above the icon zones, and a single arrow moves the eye from app to guide. The generous empty areas around both icons are deliberate. A master-level composition should never make decorative artwork look like a clickable control.
 
-The type is native in spirit: compact sans-serif forms, clear sentence case, and only enough copy to explain the next action. Real file icons remain the primary controls. Text on the background is deliberately separate from those icons, so nothing decorative masquerades as a drop target.
+Typography is sparse and high contrast. The title names the first action; a short line at the bottom explains why the guide exists. Tiny stars give the field depth without creating noise. The precise text placement and restrained palette should show painstaking attention to the way the finished DMG actually appears in Finder.
 
-Every line and interval is deliberately placed. The background should feel calm, legible, and meticulously resolved at a glance: first move Aster to the Desktop, then run the helper, which looks only at that expected location.
+The background is a meticulously resolved map, not the instructions themselves. The HTML guide carries the exact Terminal keystrokes and a copyable command in plain language. That division keeps the visual piece open and refined while making the first launch approachable for someone who has never used Terminal.

@@ -166,11 +166,15 @@ function updateViewBounds() {
 function syncTab(tab) {
   if (!tab || tab.view.webContents.isDestroyed()) return;
   const wc = tab.view.webContents;
-  tab.url = wc.getURL();
-  tab.title = wc.getTitle();
-  tab.loading = wc.isLoading();
-  tab.canGoBack = wc.navigationHistory.canGoBack();
-  tab.canGoForward = wc.navigationHistory.canGoForward();
+  const next = {
+    url: wc.getURL(),
+    title: wc.getTitle(),
+    loading: wc.isLoading(),
+    canGoBack: wc.navigationHistory.canGoBack(),
+    canGoForward: wc.navigationHistory.canGoForward(),
+  };
+  if (Object.keys(next).every((key) => tab[key] === next[key])) return;
+  Object.assign(tab, next);
   sendState();
 }
 

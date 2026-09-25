@@ -57,16 +57,16 @@ function IconButton({ label, disabled, active, children, onClick }) {
   );
 }
 
-function Tab({ tab, active, onActivate, onClose }) {
+function Tab({ tab, active, onActivate, onClose, reduceMotion }) {
   return (
     <motion.div
       layout
       className={`tab${active ? " is-active" : ""}`}
       onClick={onActivate}
-      initial={{ opacity: 0, x: -8, scale: 0.98 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96, width: 0 }}
-      transition={spring}
+      initial={reduceMotion ? false : { opacity: 0, x: -12, maxWidth: 0, minWidth: 0, paddingLeft: 0, paddingRight: 0 }}
+      animate={{ opacity: 1, x: 0, maxWidth: 228, minWidth: 132, paddingLeft: 12, paddingRight: 8 }}
+      exit={reduceMotion ? { opacity: 0, maxWidth: 0, minWidth: 0, transition: { duration: 0.01 } } : { opacity: 0, x: -8, maxWidth: 0, minWidth: 0, paddingLeft: 0, paddingRight: 0, borderWidth: 0 }}
+      transition={reduceMotion ? { duration: 0.01 } : { layout: spring, maxWidth: { duration: 0.22, ease: [0.2, 0, 0, 1] }, opacity: { duration: 0.15 }, x: { duration: 0.22, ease: [0.2, 0, 0, 1] } }}
       role="tab"
       aria-selected={active}
       tabIndex={active ? 0 : -1}
@@ -305,6 +305,7 @@ export default function App() {
                   key={tab.id}
                   tab={tab}
                   active={tab.id === state.activeTabId}
+                  reduceMotion={reduceMotion}
                   onActivate={() => command("activate-tab", { id: tab.id })}
                   onClose={() => command("close-tab", { id: tab.id })}
                 />

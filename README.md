@@ -17,7 +17,13 @@ npm run dist
 
 The packaged `.dmg` and `.zip` are written to `artifacts/` (`dist/` is reserved for the renderer build).
 
-For the DMG install, drag `Aster.app` out of the mounted image to your **Desktop**, then run **Run After Moving Aster.command**. The helper looks for `~/Desktop/Aster.app`, verifies its bundle ID, asks before removing quarantine, and opens the app without a final success popup. macOS may require you to right-click the helper and choose **Open** before it runs. It does not sign or notarize Aster. The ZIP remains unchanged.
+For the DMG install, drag `Aster.app` out of the mounted image to your **Desktop**, then open **Install Aster.html** for step-by-step Terminal instructions. The guide has a copy button for this command prefix:
+
+```bash
+xattr -dr com.apple.quarantine
+```
+
+The guide's copy button includes the needed space after `quarantine`. After pasting the command into Terminal, drag the Desktop copy of `Aster.app` into Terminal so macOS fills in the exact app path, then press Return. If Terminal reports “Operation not permitted,” enable Terminal's **Desktop Folder** access in **System Settings → Privacy & Security → Files & Folders**, reopen Terminal, and rerun it. Removing quarantine weakens macOS's downloaded-app protection; only do this for an Aster download you trust. The ZIP remains unchanged.
 
 ## Releasing updates
 
