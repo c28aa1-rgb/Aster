@@ -31,12 +31,12 @@ Pushing a `v*` tag that matches `package.json` builds a macOS release from `.git
 
 On launch, Aster checks public GitHub releases for a newer stable version and shows its release notes in the toolbar. **Download now** saves the matching architecture's `.dmg` into Downloads. It does not replace or modify the running app; the user opens the disk image and replaces Aster manually. This download-only update notice works without signing. Unsigned apps still show stronger macOS security warnings; signing and notarization improve first-launch trust, but are not needed just to offer the download.
 
-The current version is the baseline and does not notify itself. For each later version, update `package.json`, commit the changes, create a matching tag, and push it. Aster users on older versions will then see that newer public release in the toolbar.
+Version 0.4.4 is the baseline download. For each later version, update `package.json` and `.github/release-notes.md`, commit the changes, create a matching tag, and push it. Aster users on older versions will then see that newer public release in the toolbar.
 
-For example, for the next version after 0.4.3:
+For example, for the next version after 0.4.4:
 
 ```bash
-git tag v0.4.4
+git tag v0.4.5
 git push origin main --tags
 ```
 
