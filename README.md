@@ -27,18 +27,20 @@ The guide's copy button includes the needed space after `quarantine`. After past
 
 ## Releasing updates
 
-Pushing a `v*` tag to the GitHub repository builds and publishes a macOS release from `.github/workflows/release.yml`. Send people the repository's **Releases** page link; each release contains the `.dmg` and `.zip` downloads. `GITHUB_TOKEN` is provided by GitHub Actions. Keep the repository's GitHub owner/name stable if you use in-app updates.
+Pushing a `v*` tag that matches `package.json` builds a macOS release from `.github/workflows/release.yml`. GitHub Actions publishes the `.dmg`, `.zip`, and `latest-mac.yml`, then makes the release public so Aster's update checker can see it. `GITHUB_TOKEN` is provided by GitHub Actions. Keep the repository's GitHub owner/name stable for update checks.
 
-Code-signing is optional for a downloadable build, but macOS will show stronger security warnings for unsigned apps. For signed/notarized distribution and reliable in-app updates, configure `CSC_LINK` (base64-encoded Developer ID Application `.p12`) and `CSC_KEY_PASSWORD` as repository Actions secrets, plus the Apple notarization credentials described in electron-builder's documentation.
+On launch, Aster checks public GitHub releases for a newer stable version and shows its release notes in the toolbar. **Download now** saves the matching architecture's `.dmg` into Downloads. It does not replace or modify the running app; the user opens the disk image and replaces Aster manually. This download-only update notice works without signing. Unsigned apps still show stronger macOS security warnings; signing and notarization improve first-launch trust, but are not needed just to offer the download.
 
-For example, after setting the real GitHub `origin` and adding the signing secrets:
+The current version is the baseline and does not notify itself. For each later version, update `package.json`, commit the changes, create a matching tag, and push it. Aster users on older versions will then see that newer public release in the toolbar.
+
+For example, for the next version after 0.4.3:
 
 ```bash
-git tag v0.4.2
-git push origin v0.4.2
+git tag v0.4.4
+git push origin main --tags
 ```
 
-When signing is configured, the app checks shortly after launch, downloads updates in the background, and offers to restart when one is ready. macOS requires signing for that update path. Since earlier Aster builds were unsigned, current users must install a signed release manually once before in-app updates can work.
+The release workflow promotes the release created by electron-builder from draft to public after the macOS build succeeds. The update checker ignores drafts.
 
 Searches from the address bar and new-tab page use Google by default. Aster's browser engine remains Electron's bundled Chromium; it is not Google's proprietary Chrome distribution.
 

@@ -3,4 +3,5 @@ dist/
 artifacts/
 .DS_Store
 electron/preload.cjs
+public/new-tab.js
 electron/extension-runtime/dist/

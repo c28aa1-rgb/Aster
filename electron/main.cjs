@@ -1,7 +1,7 @@
 const { app, BrowserWindow, WebContentsView, dialog, ipcMain, session, shell } = require("electron");
-const { autoUpdater } = require("electron-updater");
 const fs = require("node:fs");
 const path = require("node:path");
+const { findAvailableRelease } = require("./update-release.cjs");
 const { installChromeWebStore, uninstallExtension } = require("electron-chrome-web-store");
 const { ElectronChromeExtensions } = require("electron-chrome-extensions");
 const { installExtensionPopupNavigation } = require("./extension-popup-navigation.cjs");
@@ -20,6 +20,8 @@ let pinnedExtensionIds = [];
 let chromeExtensions;
 let extensionPopupNavigation;
 let history = [];
+let availableUpdate;
+let updateState = { checking: false, available: false, downloadStatus: "idle", progress: 0, error: "" };
 
 const isDev = !app.isPackaged;
 const rendererUrl = isDev
@@ -60,28 +62,83 @@ function normalizeInput(value) {
   return `https://www.google.com/search?q=${encodeURIComponent(input)}`;
 }
 
-function startUpdateChecks() {
-  if (!app.isPackaged || !fs.existsSync(path.join(process.resourcesPath, "app-update.yml"))) return;
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.on("update-downloaded", async (info) => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: "info",
-      buttons: ["Restart to update", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-      title: "Aster update ready",
-      message: `Aster ${info.version} has been downloaded.`,
-      detail: "Restart Aster to finish installing the update.",
+function emitUpdateState() {
+  sendState();
+}
+
+async function checkForUpdates() {
+  if (updateState.checking) return updateState;
+  updateState = { ...updateState, checking: true, error: "" };
+  emitUpdateState();
+  try {
+    const response = await fetch("https://api.github.com/repos/c28aa1-rgb/Aster/releases?per_page=30", {
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "Aster-Browser" },
     });
-    if (response === 0) autoUpdater.quitAndInstall();
-  });
-  autoUpdater.on("error", (error) => console.warn("Aster update check failed:", error.message));
-  // Let the first window settle before doing network work.
-  setTimeout(() => autoUpdater.checkForUpdates().catch((error) => {
+    if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+    const releases = await response.json();
+    availableUpdate = findAvailableRelease(releases, app.getVersion(), process.arch);
+    updateState = availableUpdate
+      ? {
+        checking: false,
+        available: true,
+        version: availableUpdate.version,
+        notes: availableUpdate.body || "No release notes were provided.",
+        assetName: availableUpdate.asset.name,
+        downloadStatus: "idle",
+        progress: 0,
+        error: "",
+      }
+      : { checking: false, available: false, downloadStatus: "idle", progress: 0, error: "" };
+  } catch (error) {
+    updateState = { ...updateState, checking: false, error: error.message || "Could not check for updates." };
     console.warn("Aster update check failed:", error.message);
-  }), 5000);
+  }
+  emitUpdateState();
+  return updateState;
+}
+
+function startUpdateChecks() {
+  session.defaultSession.on("will-download", (event, item) => {
+    if (!availableUpdate || item.getURL() !== availableUpdate.asset.browser_download_url) return;
+    const filename = `Aster-${availableUpdate.version}-${process.arch}.dmg`;
+    const downloadPath = path.join(app.getPath("downloads"), filename);
+    item.setSavePath(downloadPath);
+    updateState = { ...updateState, downloadStatus: "downloading", progress: 0, error: "" };
+    emitUpdateState();
+    item.on("updated", () => {
+      const total = item.getTotalBytes();
+      updateState = {
+        ...updateState,
+        progress: total > 0 ? Math.min(100, Math.round((item.getReceivedBytes() / total) * 100)) : 0,
+      };
+      emitUpdateState();
+    });
+    item.once("done", (_downloadEvent, state) => {
+      updateState = state === "completed"
+        ? { ...updateState, downloadStatus: "downloaded", progress: 100 }
+        : { ...updateState, downloadStatus: "idle", error: `Download ${state}.` };
+      emitUpdateState();
+    });
+  });
+  const initialCheck = setTimeout(() => checkForUpdates(), 5000);
+  const periodicCheck = setInterval(() => checkForUpdates(), 6 * 60 * 60 * 1000);
+  initialCheck.unref?.();
+  periodicCheck.unref?.();
+}
+
+function downloadUpdate() {
+  if (!availableUpdate || !mainWindow || mainWindow.isDestroyed()) {
+    throw new Error("No update is available to download.");
+  }
+  if (updateState.downloadStatus === "downloading") return false;
+  const assetUrl = new URL(availableUpdate.asset.browser_download_url);
+  if (assetUrl.hostname !== "github.com" || !availableUpdate.asset.name.endsWith(".dmg")) {
+    throw new Error("The update download link is not valid.");
+  }
+  updateState = { ...updateState, downloadStatus: "downloading", progress: 0, error: "" };
+  emitUpdateState();
+  mainWindow.webContents.downloadURL(assetUrl.href);
+  return true;
 }
 
 function snapshot() {
@@ -107,6 +164,7 @@ function snapshot() {
       pinned: pinnedExtensionIds.includes(extension.id),
     })),
     history: history.slice(0, 40),
+    update: updateState,
   };
 }
 
@@ -570,4 +628,6 @@ app.on("window-all-closed", () => {
 
 ipcMain.handle("browser:get-state", () => snapshot());
 ipcMain.handle("browser:command", handleCommand);
+ipcMain.handle("browser:check-updates", checkForUpdates);
+ipcMain.handle("browser:download-update", downloadUpdate);
 ipcMain.on("browser:overlay", (_event, open) => setOverlay(open));

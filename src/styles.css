@@ -421,6 +421,37 @@ button { color: inherit; }
 .about-grid strong { margin-top: 16px; font-size: 14px; }
 .about-grid span { color: var(--muted); font-size: 12px; line-height: 1.5; }
 
+.update-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid #f7faf8;
+  border-radius: 50%;
+  background: #bd7047;
+}
+.update-content { width: min(820px, calc(100% - 64px)); }
+.release-notes { margin: 30px 0; }
+.release-notes pre {
+  max-height: min(42vh, 420px);
+  margin: 12px 0 0;
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #d7e1df;
+  border-radius: 14px;
+  color: #39565b;
+  background: rgba(255, 255, 255, 0.72);
+  font: 13px/1.65 "Instrument Sans", "Helvetica Neue", sans-serif;
+  white-space: pre-wrap;
+}
+.update-download { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.update-download progress { width: min(240px, 100%); accent-color: #35616a; }
+.update-download p { flex-basis: 100%; max-width: 580px; margin: 0; color: #64777b; font-size: 12px; line-height: 1.55; }
+.primary-button:disabled, .secondary-button:disabled { cursor: wait; opacity: 0.65; }
+.about-update-check { margin-top: 26px; }
+.update-check-error { color: #9b3544; font-size: 12px; }
+
 .spin { animation: spin 0.85s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

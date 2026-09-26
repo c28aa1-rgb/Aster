@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const emptyState = { activeTabId: null, tabs: [], extensions: [], history: [] };
+const emptyState = { activeTabId: null, tabs: [], extensions: [], history: [], update: { checking: false, available: false } };
 const previewState = {
   activeTabId: "1",
   tabs: [{ id: "1", title: "New tab", url: "", favicon: "", loading: false, canGoBack: false, canGoForward: false }],
@@ -35,6 +35,8 @@ const bridge = window.aster || {
   command: async () => null,
   setOverlay: () => {},
   onState: () => () => {},
+  checkForUpdates: async () => null,
+  downloadUpdate: async () => null,
   onFocusAddress: () => () => {},
   onDismissOverlay: () => () => {},
 };
@@ -229,6 +231,43 @@ function HistoryPanel({ items, onOpen, onClear }) {
   );
 }
 
+function UpdatePanel({ update, onCheck, onDownload }) {
+  const downloaded = update.downloadStatus === "downloaded";
+  const downloading = update.downloadStatus === "downloading";
+  return (
+    <div className="panel-content update-content">
+      <div className="panel-heading">
+        <div>
+          <p className="panel-kicker">Aster release</p>
+          <h1>Update available</h1>
+          <p>Aster {update.version} is ready to download.</p>
+        </div>
+        <button className="secondary-button" type="button" onClick={onCheck} disabled={update.checking}>
+          <RefreshCw className={update.checking ? "spin" : ""} size={16} />
+          {update.checking ? "Checking…" : "Check again"}
+        </button>
+      </div>
+      {update.error && <div className="error-callout"><CircleAlert size={18} /> {update.error}</div>}
+      <section className="release-notes">
+        <p className="panel-kicker">What changed</p>
+        <pre>{update.notes || "No release notes were provided."}</pre>
+      </section>
+      <div className="update-download">
+        <button className="primary-button" type="button" disabled={downloading || downloaded} onClick={onDownload}>
+          {downloaded ? <Check size={17} /> : <Download size={17} />}
+          {downloaded ? "Downloaded" : downloading ? `Downloading ${update.progress || 0}%` : "Download now"}
+        </button>
+        {downloading && <progress max="100" value={update.progress || 0} aria-label="Download progress" />}
+        <p>
+          {downloaded
+            ? `${update.assetName} is in your Downloads folder. Open the disk image and replace Aster manually; this download does not install it.`
+            : "This downloads the disk image to Downloads. Open it and replace Aster yourself; the app cannot install an unsigned update automatically."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [state, setState] = useState(emptyState);
   const [address, setAddress] = useState("");
@@ -354,6 +393,11 @@ export default function App() {
               </div>
             )}
             <IconButton label="Open downloads folder" onClick={() => command("open-downloads")}><Download size={16} /></IconButton>
+            {state.update?.available && (
+              <IconButton label={`Update available: Aster ${state.update.version}`} active={panel === "update"} onClick={() => openPanel("update")}>
+                <Download size={16} /><span className="update-dot" />
+              </IconButton>
+            )}
             <IconButton label="History" active={panel === "history"} onClick={() => openPanel("history")}><History size={16} /></IconButton>
             <IconButton label="Extensions" active={panel === "extensions"} onClick={() => openPanel("extensions")}>
               <Puzzle size={16} />
@@ -374,7 +418,13 @@ export default function App() {
             transition={{ duration: reduceMotion ? 0.01 : 0.36, ease: [0.4, 0, 0.2, 1] }}
           >
             <button className="panel-close" type="button" aria-label="Close panel" onClick={() => setPanel(null)}><X size={18} /></button>
-            {panel === "extensions" ? (
+            {panel === "update" ? (
+              <UpdatePanel
+                update={state.update || {}}
+                onCheck={() => bridge.checkForUpdates().catch(console.error)}
+                onDownload={() => bridge.downloadUpdate().catch((error) => console.error("Update download failed:", error))}
+              />
+            ) : panel === "extensions" ? (
               <ExtensionsPanel
                 extensions={state.extensions}
                 onBrowseStore={() => {
@@ -397,6 +447,11 @@ export default function App() {
               <div className="panel-content about-content">
                 <p className="panel-kicker">Aster 0.4</p>
                 <h1>A quieter way through the web.</h1>
+                <button className="secondary-button about-update-check" type="button" onClick={() => bridge.checkForUpdates().catch(console.error)} disabled={state.update?.checking}>
+                  <RefreshCw className={state.update?.checking ? "spin" : ""} size={16} />
+                  {state.update?.checking ? "Checking for updates…" : state.update?.available ? `Aster ${state.update.version} is available` : "Check for updates"}
+                </button>
+                {state.update?.error && <p className="update-check-error">{state.update.error}</p>}
                 <p className="about-lede">Built on Chromium with a compact macOS shell, native tab isolation, and persistent unpacked extensions.</p>
                 <div className="about-grid">
                   <div><ShieldCheck size={19} /><strong>Chromium core</strong><span>Modern site compatibility and sandboxed web contents.</span></div>
