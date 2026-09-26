@@ -27,7 +27,7 @@ The guide's copy button includes the needed space after `quarantine`. After past
 
 ## Releasing updates
 
-Pushing a `v*` tag that matches `package.json` builds a macOS release from `.github/workflows/release.yml`. GitHub Actions publishes the `.dmg`, `.zip`, and `latest-mac.yml`, then makes the release public so Aster's update checker can see it. `GITHUB_TOKEN` is provided by GitHub Actions. Keep the repository's GitHub owner/name stable for update checks.
+Pushing a `v*` tag that matches `package.json` builds a macOS release from `.github/workflows/release.yml`. GitHub Actions creates one public release with the `.dmg`, `.zip`, blockmaps, and `latest-mac.yml` update metadata. `GITHUB_TOKEN` is provided by GitHub Actions. Keep the repository's GitHub owner/name stable for update checks.
 
 On launch, Aster checks public GitHub releases for a newer stable version and shows its release notes in the toolbar. **Download now** saves the matching architecture's `.dmg` into Downloads. It does not replace or modify the running app; the user opens the disk image and replaces Aster manually. This download-only update notice works without signing. Unsigned apps still show stronger macOS security warnings; signing and notarization improve first-launch trust, but are not needed just to offer the download.
 
@@ -40,7 +40,7 @@ git tag v0.4.5
 git push origin main --tags
 ```
 
-The release workflow promotes the release created by electron-builder from draft to public after the macOS build succeeds. The update checker ignores drafts.
+The release workflow creates the public GitHub release after the build succeeds. The update checker ignores drafts.
 
 Searches from the address bar and new-tab page use Google by default. Aster's browser engine remains Electron's bundled Chromium; it is not Google's proprietary Chrome distribution.
 

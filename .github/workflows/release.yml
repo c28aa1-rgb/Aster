@@ -24,13 +24,19 @@ jobs:
           APP_VERSION="v$(node -p "require('./package.json').version")"
           test "$RELEASE_TAG" = "$APP_VERSION" || (echo "Tag $RELEASE_TAG must match package version $APP_VERSION" && exit 1)
       - run: npm ci
-      - name: Build and publish macOS download
+      - name: Build macOS download
         run: npm run release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Publish an unsigned download unless signing is configured deliberately.
           CSC_IDENTITY_AUTO_DISCOVERY: false
-      - name: Publish release for Aster update checks
-        run: gh release edit "$GITHUB_REF_NAME" --notes-file .github/release-notes.md --draft=false --repo "$GITHUB_REPOSITORY"
+      - name: Publish one public release with downloads and update metadata
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ASSETS=(artifacts/Aster-"$VERSION"-*.dmg artifacts/Aster-"$VERSION"-*.dmg.blockmap artifacts/Aster-"$VERSION"-*.zip artifacts/Aster-"$VERSION"-*.zip.blockmap artifacts/latest-mac.yml)
+          gh release create "$GITHUB_REF_NAME" "${ASSETS[@]}" \
+            --title "Aster $VERSION" \
+            --notes-file .github/release-notes.md \
+            --verify-tag \
+            --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

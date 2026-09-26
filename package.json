@@ -18,7 +18,7 @@
     "build": "npm run build:preload && vite build",
     "start": "electron .",
     "dist": "npm run build && electron-builder --mac",
-    "release": "npm run build && electron-builder --mac --publish always",
+    "release": "npm run build && electron-builder --mac --publish never",
     "test:extension": "electron test/extension-smoke.cjs",
     "test:web-store": "electron test/web-store-smoke.cjs",
     "test:browser-action": "npm run build:preload && electron test/browser-action-smoke.cjs",
