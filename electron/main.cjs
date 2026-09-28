@@ -85,6 +85,20 @@ function emitUpdateState() {
   sendState();
 }
 
+async function releaseAssetExists(release) {
+  if (!release?.asset?.browser_download_url) return false;
+  try {
+    const response = await fetch(release.asset.browser_download_url, {
+      method: "HEAD",
+      redirect: "follow",
+      headers: { "User-Agent": "Aster-Browser" },
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function checkForUpdates() {
   if (updateState.checking) return updateState;
   updateState = { ...updateState, checking: true, error: "" };
@@ -97,12 +111,14 @@ async function checkForUpdates() {
     if (!feedResponse.ok) throw new Error(`GitHub returned ${feedResponse.status}`);
     const feed = await feedResponse.text();
     availableUpdate = findAvailableRelease(parseAtomReleases(feed, process.arch), app.getVersion(), process.arch);
+    if (availableUpdate && !(await releaseAssetExists(availableUpdate))) availableUpdate = undefined;
     if (!availableUpdate) {
       const response = await fetch("https://api.github.com/repos/c28aa1-rgb/Aster/releases?per_page=30", {
         headers: { Accept: "application/vnd.github+json", "User-Agent": "Aster-Browser" },
       });
       if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
       availableUpdate = findAvailableRelease(await response.json(), app.getVersion(), process.arch);
+      if (availableUpdate && !(await releaseAssetExists(availableUpdate))) availableUpdate = undefined;
     }
     updateState = availableUpdate
       ? {
