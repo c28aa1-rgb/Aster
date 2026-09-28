@@ -26,6 +26,26 @@ app.whenReady().then(async () => {
       const timeout = setTimeout(() => { clearInterval(timer); reject(new Error('Shortcut enhancement did not mount')); }, 5000);
       const timer = setInterval(() => { if (document.querySelectorAll('#shortcuts svg').length === 3) { clearTimeout(timeout); clearInterval(timer); resolve(); } }, 20);
     })`);
+    await window.webContents.executeJavaScript(`document.querySelector('.customize-shortcuts').click()`);
+    await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Shortcut editor did not open')), 3000);
+      const poll = () => document.querySelectorAll('.shortcut-edit-row').length === 4 ? (clearTimeout(timeout), resolve()) : setTimeout(poll, 20);
+      poll();
+    })`);
+    await window.webContents.executeJavaScript(`(() => {
+      const input = document.querySelector('.shortcut-edit-row input:nth-child(1)');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'Aster Docs'); input.dispatchEvent(new Event('input', { bubbles: true }));
+      document.querySelector('.customize-shortcuts').click();
+    })()`);
+    await window.webContents.executeJavaScript(`new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Shortcut edit did not save')), 3000);
+      const poll = () => localStorage.getItem('aster-shortcuts')?.includes('Aster Docs') ? (clearTimeout(timeout), resolve()) : setTimeout(poll, 20);
+      poll();
+    })`);
+    const savedShortcut = await window.webContents.executeJavaScript(`JSON.parse(localStorage.getItem('aster-shortcuts'))[0]`);
+    if (savedShortcut.name !== 'Aster Docs') throw new Error(`Shortcut customization failed: ${JSON.stringify(savedShortcut)}`);
+    console.log("SHORTCUT_CUSTOMIZATION_OK");
     await expectSearch(window, () => window.webContents.executeJavaScript(`document.querySelector('.search-submit').click()`), 'NEW_TAB_BUTTON');
     window.webContents.debugger.attach('1.3');
     await window.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });

@@ -81,7 +81,8 @@ h1 {
   transition: background 120ms var(--ease);
 }
 .search-submit:hover { background: #22484f; }
-.shortcuts { display: flex; justify-content: center; gap: 26px; margin: 30px auto 0; }
+.shortcuts { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 26px; margin: 30px auto 0; }
+.shortcut-list { display: flex; justify-content: center; gap: 26px; width: 100%; }
 .shortcut {
   display: flex; flex-direction: column; align-items: center; gap: 10px;
   min-width: 66px; padding: 4px; color: #4a656e; text-decoration: none; font-size: 11px; border-radius: 12px;
@@ -96,6 +97,25 @@ h1 {
 .shortcut-icon.youtube { color: #c04751; }
 .shortcut-icon.wikipedia { font: 25px/1 Georgia, serif; color: #38494f; }
 .shortcut-icon.github { color: #344d59; }
+.customize-shortcuts {
+  margin: 4px auto 0; padding: 5px 9px; border: 0; border-radius: 7px;
+  color: #6b8188; background: transparent; font-size: 11px;
+}
+.customize-shortcuts:hover { color: #315d66; background: #ffffff80; }
+.shortcut-editor {
+  width: min(520px, 100%); display: grid; gap: 10px; margin: 8px auto 0; padding: 16px;
+  border: 1px solid #c6d5db; border-radius: 16px; text-align: left; background: #ffffffdb;
+  box-shadow: 0 12px 30px #24495010;
+}
+.shortcut-editor-heading { display: grid; gap: 3px; margin-bottom: 3px; }
+.shortcut-editor-heading span { color: #71868c; font-size: 11px; }
+.shortcut-edit-row { display: grid; grid-template-columns: minmax(90px, .7fr) minmax(0, 1.4fr) 28px; gap: 7px; }
+.shortcut-edit-row input { width: 100%; min-width: 0; height: 34px; padding: 0 9px; border: 1px solid #c6d5db; border-radius: 8px; outline: 0; color: #23494e; background: #fff; font-size: 12px; }
+.shortcut-edit-row input:focus { border-color: #54818b; box-shadow: 0 0 0 3px #54818b16; }
+.shortcut-edit-row button { border: 0; border-radius: 8px; color: #9b5660; background: transparent; font-size: 20px; }
+.shortcut-edit-row button:hover { background: #f9e9e9; }
+.add-shortcut { justify-self: start; padding: 6px 9px; border: 0; border-radius: 7px; color: #386d77; background: #e7f0f1; font-size: 11px; }
+.add-shortcut:hover { background: #d6e7e8; }
 .search-provider { margin: 24px 0 0; color: #687f89; font-size: 11px; }
 .page-footer {
   display: flex; justify-content: space-between; align-items: center; gap: 24px;
@@ -112,11 +132,16 @@ kbd { font: inherit; color: #3f6069; padding: 3px 6px; border: 1px solid #aebfc6
   .launchpad { margin-top: 40px; }
   h1 { margin-bottom: 28px; }
   .search-field { height: 62px; gap: 10px; padding-left: 17px; }
-  .shortcuts { gap: 12px; }
+  .shortcut-list { gap: 12px; }
   .shortcut { min-width: 57px; }
   .keyboard-hints { display: none; }
   .page-footer { justify-content: flex-end; }
   .celestial-art { background-position: 65% bottom; opacity: .8; }
+}
+
+@media (max-width: 460px) {
+  .shortcut-edit-row { grid-template-columns: 1fr 28px; }
+  .shortcut-edit-row input:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
 }
 @media (max-height: 640px) {
   .celestial-art { opacity: .22; }
@@ -146,6 +171,14 @@ kbd { font: inherit; color: #3f6069; padding: 3px 6px; border: 1px solid #aebfc6
   .shortcut { color: #c1d7da; }
   .shortcut-icon { color: #b9d6dc; background: #1c2e37d9; border-color: #45616d; }
   .shortcut:hover .shortcut-icon { background: #2b444e; }
+  .customize-shortcuts { color: #aac0c5; }
+  .customize-shortcuts:hover { color: #e0eeed; background: #2b444e; }
+  .shortcut-editor { border-color: #45616d; background: #1c2e37f5; box-shadow: 0 12px 30px #08141e30; }
+  .shortcut-editor-heading span { color: #aac0c5; }
+  .shortcut-edit-row input { color: #e0eeed; background: #14232b; border-color: #45616d; }
+  .shortcut-edit-row input:focus { border-color: #93c9cd; box-shadow: 0 0 0 3px #93c9cd20; }
+  .shortcut-edit-row button:hover { background: #472a35; }
+  .add-shortcut { color: #14232b; background: #93c9cd; }
   .shortcut-icon.youtube { color: #ed8790; }
   .shortcut-icon.wikipedia, .shortcut-icon.github { color: #c1d7da; }
   .search-provider, .page-footer { color: #aac0c5; }
