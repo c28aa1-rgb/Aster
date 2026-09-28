@@ -535,12 +535,16 @@ function findTabByWebContents(webContents) {
   return [...tabs.values()].find((tab) => tab.view.webContents === webContents);
 }
 
+const pendingPermissionPrompts = new Map();
+
 async function requestExtensionPermissions(extension, permissions) {
   const requested = [
     ...(Array.isArray(permissions.permissions) ? permissions.permissions : []),
     ...(Array.isArray(permissions.origins) ? permissions.origins : []),
   ];
-  const result = await dialog.showMessageBox(mainWindow, {
+  const promptKey = `${extension.id}:${JSON.stringify([...requested].sort())}`;
+  if (pendingPermissionPrompts.has(promptKey)) return pendingPermissionPrompts.get(promptKey);
+  const prompt = dialog.showMessageBox(mainWindow, {
     type: "question",
     buttons: ["Allow", "Deny"],
     defaultId: 0,
@@ -550,8 +554,9 @@ async function requestExtensionPermissions(extension, permissions) {
       ? requested.slice(0, 12).map((permission) => `• ${permission}`).join("\n")
       : "The extension requested additional access.",
     noLink: true,
-  });
-  return result.response === 0;
+  }).then(result => result.response === 0).finally(() => pendingPermissionPrompts.delete(promptKey));
+  pendingPermissionPrompts.set(promptKey, prompt);
+  return prompt;
 }
 
 async function initializeExtensionSupport() {

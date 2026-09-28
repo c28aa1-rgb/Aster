@@ -7,6 +7,7 @@ const marker = "        privacy: {";
 const electronContextMarker = `      disconnectNative
     };`;
 const chromeSettingMarker = "      class ChromeSetting {";
+const browserNamespaceMarker = "      delete globalThis.electron;";
 const webRequestMarker = `              ...base,
               onHeadersReceived: new ExtensionEvent("webRequest.onHeadersReceived")`;
 const proxyApi = `        proxy: {
@@ -76,7 +77,7 @@ const proxyAuthEvent = `      class ProxyAuthEvent {
 `;
 
 const source = fs.readFileSync(sourcePath, "utf8");
-if (![marker, electronContextMarker, chromeSettingMarker, webRequestMarker].every((value) => source.includes(value))) {
+if (![marker, electronContextMarker, chromeSettingMarker, webRequestMarker, browserNamespaceMarker].every((value) => source.includes(value))) {
   throw new Error("Unable to locate the extension API insertion point");
 }
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -84,6 +85,9 @@ const patched = source
   .replace(marker, `${proxyApi}${marker}`)
   .replace(electronContextMarker, `      disconnectNative,\n${proxyAuthBridge}    };`)
   .replace(chromeSettingMarker, `${proxyAuthEvent}${chromeSettingMarker}`)
+  // Electron exposes a partial native `browser` namespace. Webextension-polyfill
+  // trusts it and skips its own wrappers, so bridge the supported namespaces too.
+  .replace(browserNamespaceMarker, `      if (globalThis.browser?.runtime?.id) {\n        globalThis.browser = { ...globalThis.browser, ...chrome };\n      }\n${browserNamespaceMarker}`)
   .replace(webRequestMarker, `${webRequestMarker},\n              onAuthRequired: new ProxyAuthEvent()`);
 fs.writeFileSync(outputPath, patched);
 console.log(`Built ${path.relative(process.cwd(), outputPath)}`);
