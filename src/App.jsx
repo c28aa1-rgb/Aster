@@ -9,7 +9,8 @@ import {
   History,
   Home,
   LoaderCircle,
-  MoreHorizontal,
+  Settings,
+  Moon,
   Pin,
   PinOff,
   Plus,
@@ -312,6 +313,10 @@ export default function App() {
     bridge.setOverlay(Boolean(panel));
   }, [panel]);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = state.theme || "light";
+  }, [state.theme]);
+
   const command = (type, payload) => bridge.command(type, payload);
   const openPanel = (name) => setPanel((current) => current === name ? null : name);
   const navigate = (value = address) => {
@@ -403,7 +408,7 @@ export default function App() {
               <Puzzle size={16} />
               {state.extensions.length > 0 && <span className="extension-count">{state.extensions.length}</span>}
             </IconButton>
-            <IconButton label="About Aster" active={panel === "about"} onClick={() => openPanel("about")}><MoreHorizontal size={18} /></IconButton>
+            <IconButton label="Settings" active={panel === "settings"} onClick={() => openPanel("settings")}><Settings size={18} /></IconButton>
           </div>
         </div>
       </header>
@@ -445,8 +450,16 @@ export default function App() {
               />
             ) : (
               <div className="panel-content about-content">
-                <p className="panel-kicker">Aster 0.4</p>
-                <h1>A quieter way through the web.</h1>
+                <p className="panel-kicker">Make Aster yours</p>
+                <h1>Settings</h1>
+                <div className="appearance-setting">
+                  <Moon size={21} aria-hidden="true" />
+                  <div><strong id="dark-mode-label">Dark mode</strong><p>A softer glow for late-night browsing.</p></div>
+                  <button className="theme-switch" type="button" role="switch" aria-checked={state.theme === "dark"} aria-labelledby="dark-mode-label"
+                    onClick={() => command("set-theme", { theme: state.theme === "dark" ? "light" : "dark" }).catch(console.error)}>
+                    <span />
+                  </button>
+                </div>
                 <button className="secondary-button about-update-check" type="button" onClick={() => bridge.checkForUpdates().catch(console.error)} disabled={state.update?.checking}>
                   <RefreshCw className={state.update?.checking ? "spin" : ""} size={16} />
                   {state.update?.checking ? "Checking for updates…" : state.update?.available ? `Aster ${state.update.version} is available` : "Check for updates"}

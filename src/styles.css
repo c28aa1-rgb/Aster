@@ -564,3 +564,99 @@ input:focus-visible { outline-color: #35616a; }
 .about-grid span { color: #63777b; }
 .about-grid { border-top-color: #d7e1df; }
 .about-grid > div { border-bottom-color: #d7e1df; }
+
+.appearance-setting {
+  display: flex; align-items: center; gap: 18px;
+  margin: 32px 0 8px; padding: 24px 0;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.appearance-setting > svg { color: var(--cosmic-blue); flex: none; }
+.appearance-setting > div { flex: 1; }
+.appearance-setting strong { font-size: 15px; }
+.appearance-setting p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
+.theme-switch {
+  width: 46px; height: 28px; flex: none; padding: 3px;
+  border: 1px solid #b4c6c6; border-radius: 20px;
+  background: #ccd9d7; cursor: pointer;
+}
+.theme-switch span {
+  display: block; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px #14232b30;
+  transition: transform 160ms var(--ease);
+}
+.theme-switch[aria-checked="true"] { background: #77b5ba; border-color: #77b5ba; }
+.theme-switch[aria-checked="true"] span { transform: translateX(18px); }
+@media (prefers-reduced-motion: reduce) {
+  .theme-switch span { transition: none; }
+}
+
+/* Night Observatory keeps the same mineral palette and quiet hierarchy. */
+:root[data-theme="dark"] {
+  color-scheme: dark; color: #e0eeed; background: #14232b;
+  --ink: #e0eeed; --silver: #e0eeed; --muted: #9bb3b7;
+  --cosmic-blue: #93c9cd; --lavender: #93c9cd;
+  --line: #31454e;
+}
+[data-theme="dark"] .app-shell,
+[data-theme="dark"] .panel-layer { background: #14232b; }
+[data-theme="dark"] .browser-chrome,
+[data-theme="dark"] .toolbar { background: #1c2e37; border-color: #31454e; }
+[data-theme="dark"] .tab-strip { background: #101f27; }
+[data-theme="dark"] .tab { color: #9bb3b7; }
+[data-theme="dark"] .tab:hover { color: #e0eeed; background: #233943; }
+[data-theme="dark"] .tab.is-active { color: #e0eeed; background: #1c2e37; border-color: #31454e; }
+[data-theme="dark"] .favicon-shell,
+[data-theme="dark"] .tab-close,
+[data-theme="dark"] .icon-button { color: #aec6c9; }
+[data-theme="dark"] .icon-button:hover:not(:disabled),
+[data-theme="dark"] .icon-button.is-active,
+[data-theme="dark"] .tab-close:hover,
+[data-theme="dark"] .pinned-action-button:hover { color: #e0eeed; background: #2b444e; border-color: #3b5862; }
+[data-theme="dark"] .address-field { background: #111f27; border-color: #3b535d; box-shadow: none; }
+[data-theme="dark"] .address-field.is-editing { background: #14232b; border-color: #93c9cd; box-shadow: 0 0 0 3px #93c9cd20; }
+[data-theme="dark"] .address-field input { color: #e0eeed; }
+[data-theme="dark"] .address-field input::placeholder,
+[data-theme="dark"] .address-search { color: #91aab0; }
+[data-theme="dark"] .secure-mark,
+[data-theme="dark"] .panel-kicker,
+[data-theme="dark"] .about-grid svg,
+[data-theme="dark"] .support-note svg,
+[data-theme="dark"] .pinned-action-button { color: #93c9cd; }
+[data-theme="dark"] .panel-close,
+[data-theme="dark"] .secondary-button { background: #1c2e37; border-color: #3b535d; color: #d0e2e3; }
+[data-theme="dark"] .secondary-button:hover { background: #2b444e; color: #fff; }
+[data-theme="dark"] .primary-button { background: #93c9cd; border-color: #93c9cd; color: #14232b; }
+[data-theme="dark"] .primary-button:hover { background: #b2dce0; }
+[data-theme="dark"] .panel-heading p:not(.panel-kicker),
+[data-theme="dark"] .panel-hint,
+[data-theme="dark"] .extension-copy span,
+[data-theme="dark"] .extension-copy small,
+[data-theme="dark"] .no-action-label,
+[data-theme="dark"] .empty-state p,
+[data-theme="dark"] .support-note,
+[data-theme="dark"] .history-time,
+[data-theme="dark"] .history-row small,
+[data-theme="dark"] .history-row svg,
+[data-theme="dark"] .about-lede,
+[data-theme="dark"] .about-grid span,
+[data-theme="dark"] .update-download p { color: #9bb3b7; }
+[data-theme="dark"] .text-button { color: #b5cccf; }
+[data-theme="dark"] .text-button:hover,
+[data-theme="dark"] .history-row:hover,
+[data-theme="dark"] .pin-button.is-pinned { color: #e0eeed; background: #233943; }
+[data-theme="dark"] .extension-mark,
+[data-theme="dark"] .empty-orbit { color: #93c9cd; border-color: #3b535d; background: #1c2e37; }
+[data-theme="dark"] .loaded-pill { color: #a2d5bd; }
+[data-theme="dark"] .empty-state code { color: #93c9cd; }
+[data-theme="dark"] .support-note,
+[data-theme="dark"] .about-grid,
+[data-theme="dark"] .about-grid > div,
+[data-theme="dark"] .pinned-actions { border-color: #31454e; }
+[data-theme="dark"] .release-notes pre { color: #c1d7da; background: #1c2e37; border-color: #31454e; }
+[data-theme="dark"] .error-callout { color: #ffc1c8; background: #472a35; border-color: #68404e; }
+[data-theme="dark"] .update-check-error { color: #ffc1c8; }
+[data-theme="dark"] .text-button.danger:hover { color: #ffc1c8; background: #472a35; }
+[data-theme="dark"] .update-dot,
+[data-theme="dark"] .pinned-action-button .badge { border-color: #1c2e37; }
+[data-theme="dark"] button:focus-visible,
+[data-theme="dark"] input:focus-visible { outline-color: #93c9cd; }

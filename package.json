@@ -1,6 +1,6 @@
 {
   "name": "aster-browser",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "A calm, extension-capable Chromium browser for macOS.",
   "author": "Aster",
   "repository": {
@@ -24,6 +24,7 @@
     "test:browser-action": "npm run build:preload && electron test/browser-action-smoke.cjs",
     "test:overlay": "node test/packaged-overlay-smoke.mjs",
     "test:new-tab": "npm run build:new-tab && electron test/new-tab-smoke.cjs",
+    "test:appearance": "npm run build && electron test/appearance-smoke.cjs",
     "test:update-release": "node test/update-release-smoke.cjs",
     "test:vpn-api": "npm run build:extension-runtime && electron test/vpn-api-smoke.cjs",
     "test:vpn-extension": "npm run build:extension-runtime && electron test/vpn-extension-smoke.cjs"

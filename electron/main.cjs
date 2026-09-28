@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, dialog, ipcMain, session, shell } = require("electron");
+const { app, BrowserWindow, WebContentsView, dialog, ipcMain, nativeTheme, session, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { findAvailableRelease } = require("./update-release.cjs");
@@ -20,6 +20,25 @@ let pinnedExtensionIds = [];
 let chromeExtensions;
 let extensionPopupNavigation;
 let history = [];
+let theme = "light";
+
+function setTheme(value) {
+  if (value !== "light" && value !== "dark") throw new Error("Invalid theme");
+  fs.mkdirSync(app.getPath("userData"), { recursive: true });
+  fs.writeFileSync(path.join(app.getPath("userData"), "appearance.json"), JSON.stringify({ theme: value }));
+  theme = value;
+  nativeTheme.themeSource = theme;
+  mainWindow?.setBackgroundColor(theme === "dark" ? "#14232b" : "#F4F7F5");
+  sendState();
+}
+
+function restoreTheme() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "appearance.json"), "utf8"));
+    if (saved.theme === "dark") theme = "dark";
+  } catch { /* First launch uses the light theme. */ }
+  nativeTheme.themeSource = theme;
+}
 let availableUpdate;
 let updateState = { checking: false, available: false, downloadStatus: "idle", progress: 0, error: "" };
 
@@ -143,6 +162,7 @@ function downloadUpdate() {
 
 function snapshot() {
   return {
+    theme,
     activeTabId,
     tabs: [...tabs.values()].map(({ id, view, title, url, favicon, loading, canGoBack, canGoForward }) => ({
       id,
@@ -554,6 +574,7 @@ async function initializeExtensionSupport() {
 async function handleCommand(_event, { type, payload }) {
   const tab = tabs.get(activeTabId);
   switch (type) {
+    case "set-theme": return setTheme(payload?.theme);
     case "new-tab": return createTab();
     case "close-tab": return closeTab(payload?.id);
     case "activate-tab": return activateTab(payload?.id);
@@ -585,7 +606,7 @@ function createWindow() {
     title: "Aster",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 17, y: 18 },
-    backgroundColor: "#F4F7F5",
+    backgroundColor: theme === "dark" ? "#14232b" : "#F4F7F5",
     vibrancy: "under-window",
     visualEffectState: "active",
     webPreferences: {
@@ -614,6 +635,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  restoreTheme();
   await initializeExtensionSupport();
   createWindow();
   startUpdateChecks();

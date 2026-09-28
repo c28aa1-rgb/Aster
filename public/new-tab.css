@@ -130,3 +130,25 @@ kbd { font: inherit; color: #3f6069; padding: 3px 6px; border: 1px solid #aebfc6
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; }
 }
+
+@media (prefers-color-scheme: dark) {
+  :root { color-scheme: dark; color: #e0eeed; background: #14232b; --ink: #e0eeed; --muted: #aac0c5; }
+  .celestial-art { background-color: #14232b; background-blend-mode: luminosity; }
+  .celestial-art::after { content: ""; position: absolute; inset: 0; background: #10232ce6; }
+  .aster-mark, #clock { color: #a7d4d8; }
+  .search-field { background: #1c2e37f5; border-color: #45616d; box-shadow: 0 10px 32px #08141e30; }
+  .search-field:hover { border-color: #73989f; }
+  .search-field:focus-within { border-color: #93c9cd; box-shadow: 0 0 0 4px #93c9cd20; }
+  .search-icon, #query::placeholder { color: #9bb3b7; }
+  #query { color: #e0eeed; }
+  .search-submit { background: #93c9cd; border-color: #93c9cd; color: #14232b; }
+  .search-submit:hover { background: #b2dce0; }
+  .shortcut { color: #c1d7da; }
+  .shortcut-icon { color: #b9d6dc; background: #1c2e37d9; border-color: #45616d; }
+  .shortcut:hover .shortcut-icon { background: #2b444e; }
+  .shortcut-icon.youtube { color: #ed8790; }
+  .shortcut-icon.wikipedia, .shortcut-icon.github { color: #c1d7da; }
+  .search-provider, .page-footer { color: #aac0c5; }
+  kbd { color: #c1d7da; background: #1c2e3780; border-color: #45616d; }
+  button:focus-visible, a:focus-visible { outline-color: #93c9cd; }
+}
