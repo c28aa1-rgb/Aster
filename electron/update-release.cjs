@@ -22,4 +22,32 @@ function findAvailableRelease(releases, currentVersion, arch) {
     .find((release) => release.asset);
 }
 
-module.exports = { compareVersions, findAvailableRelease };
+function decodeXml(value) {
+  return String(value || "")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+}
+
+function parseAtomReleases(xml, arch) {
+  return [...String(xml || "").matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map((match) => {
+    const entry = match[1];
+    const title = decodeXml(entry.match(/<title>([\s\S]*?)<\/title>/)?.[1]);
+    const tag = entry.match(/releases\/tag\/(v[^<"]+)/)?.[1] || title.match(/v?\d+\.\d+\.\d+/)?.[0];
+    const version = String(tag || "").replace(/^v/i, "");
+    const content = decodeXml(entry.match(/<content[^>]*>([\s\S]*?)<\/content>/)?.[1])
+      .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (!/^\d+\.\d+\.\d+$/.test(version)) return null;
+    return {
+      tag_name: `v${version}`,
+      draft: false,
+      prerelease: false,
+      body: content,
+      assets: [{
+        name: `Aster-${version}-${arch}.dmg`,
+        browser_download_url: `https://github.com/c28aa1-rgb/Aster/releases/download/v${version}/Aster-${version}-${arch}.dmg`,
+      }],
+    };
+  }).filter(Boolean);
+}
+
+module.exports = { compareVersions, findAvailableRelease, parseAtomReleases };

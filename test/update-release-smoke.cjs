@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { compareVersions, findAvailableRelease } = require("../electron/update-release.cjs");
+const { compareVersions, findAvailableRelease, parseAtomReleases } = require("../electron/update-release.cjs");
 
 assert.equal(compareVersions("0.4.10", "0.4.9"), 1);
 assert.equal(compareVersions("v0.4.3", "0.4.3"), 0);
@@ -15,4 +15,9 @@ const releases = [
 assert.equal(findAvailableRelease(releases, "0.4.3", "arm64")?.version, "0.4.5");
 assert.equal(findAvailableRelease(releases, "0.4.3", "x64")?.version, "0.4.4");
 assert.equal(findAvailableRelease(releases, "0.4.5", "arm64"), undefined);
+const atom = '<entry><link href="https://github.com/c28aa1-rgb/Aster/releases/tag/v0.4.5"/><title>Aster 0.4.5</title><content type="html">&lt;h2&gt;Aster 0.4.5&lt;/h2&gt; &lt;li&gt;Dark mode&lt;/li&gt;</content></entry>';
+const atomRelease = parseAtomReleases(atom, "arm64")[0];
+assert.equal(atomRelease.tag_name, "v0.4.5");
+assert.equal(atomRelease.assets[0].browser_download_url, "https://github.com/c28aa1-rgb/Aster/releases/download/v0.4.5/Aster-0.4.5-arm64.dmg");
+assert.match(atomRelease.body, /Dark mode/);
 console.log("UPDATE_RELEASE_SELECTION_OK");

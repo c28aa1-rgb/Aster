@@ -1,6 +1,7 @@
-## Aster 0.4.5
+## Aster 0.4.6
 
 - Replaces the toolbar three-dot menu with a settings button.
 - Adds a persistent dark mode toggle that applies to the browser chrome, settings panels, and new-tab page.
 - Keeps the light theme as the default for new installs.
+- Makes update checks work without relying on GitHub's unauthenticated API quota.
 - Update downloads remain manual: download the new DMG, then replace Aster.

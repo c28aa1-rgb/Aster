@@ -1,7 +1,7 @@
 const { app, BrowserWindow, WebContentsView, dialog, ipcMain, nativeTheme, session, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { findAvailableRelease } = require("./update-release.cjs");
+const { findAvailableRelease, parseAtomReleases } = require("./update-release.cjs");
 const { installChromeWebStore, uninstallExtension } = require("electron-chrome-web-store");
 const { ElectronChromeExtensions } = require("electron-chrome-extensions");
 const { installExtensionPopupNavigation } = require("./extension-popup-navigation.cjs");
@@ -90,12 +90,20 @@ async function checkForUpdates() {
   updateState = { ...updateState, checking: true, error: "" };
   emitUpdateState();
   try {
-    const response = await fetch("https://api.github.com/repos/c28aa1-rgb/Aster/releases?per_page=30", {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "Aster-Browser" },
+    // GitHub's public Atom feed avoids the unauthenticated API's 60-request limit.
+    const feedResponse = await fetch("https://github.com/c28aa1-rgb/Aster/releases.atom", {
+      headers: { Accept: "application/atom+xml", "User-Agent": "Aster-Browser" },
     });
-    if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
-    const releases = await response.json();
-    availableUpdate = findAvailableRelease(releases, app.getVersion(), process.arch);
+    if (!feedResponse.ok) throw new Error(`GitHub returned ${feedResponse.status}`);
+    const feed = await feedResponse.text();
+    availableUpdate = findAvailableRelease(parseAtomReleases(feed, process.arch), app.getVersion(), process.arch);
+    if (!availableUpdate) {
+      const response = await fetch("https://api.github.com/repos/c28aa1-rgb/Aster/releases?per_page=30", {
+        headers: { Accept: "application/vnd.github+json", "User-Agent": "Aster-Browser" },
+      });
+      if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+      availableUpdate = findAvailableRelease(await response.json(), app.getVersion(), process.arch);
+    }
     updateState = availableUpdate
       ? {
         checking: false,
