@@ -4,6 +4,8 @@ import {
   ArrowRight,
   Check,
   CircleAlert,
+  CircleArrowDown,
+  CheckCircle2,
   Download,
   ExternalLink,
   History,
@@ -239,9 +241,9 @@ function UpdatePanel({ update, onCheck, onDownload }) {
     <div className="panel-content update-content">
       <div className="panel-heading">
         <div>
-          <p className="panel-kicker">Aster release</p>
+          <div className="update-title-row"><span className="update-hero-icon"><CircleArrowDown size={22} /></span><p className="panel-kicker">Aster release</p></div>
           <h1>Update available</h1>
-          <p>Aster {update.version} is ready to download.</p>
+          <p>Aster {update.version} is ready. Download it when you’re ready to install.</p>
         </div>
         <button className="secondary-button" type="button" onClick={onCheck} disabled={update.checking}>
           <RefreshCw className={update.checking ? "spin" : ""} size={16} />
@@ -255,10 +257,11 @@ function UpdatePanel({ update, onCheck, onDownload }) {
       </section>
       <div className="update-download">
         <button className="primary-button" type="button" disabled={downloading || downloaded} onClick={onDownload}>
-          {downloaded ? <Check size={17} /> : <Download size={17} />}
-          {downloaded ? "Downloaded" : downloading ? `Downloading ${update.progress || 0}%` : "Download now"}
+          {downloaded ? <CheckCircle2 size={17} /> : <CircleArrowDown size={17} />}
+          {downloaded ? "Download complete" : downloading ? `Downloading ${update.progress || 0}%` : "Download update"}
         </button>
-        {downloading && <progress max="100" value={update.progress || 0} aria-label="Download progress" />}
+        {downloading && <div className="update-progress-wrap"><div className="update-progress-label"><span>Downloading Aster {update.version}</span><strong>{update.progress || 0}%</strong></div><progress max="100" value={update.progress || 0} aria-label="Download progress" /></div>}
+        {downloaded && <div className="download-complete"><CheckCircle2 size={16} /><span>Ready in your Downloads folder</span></div>}
         <p>
           {downloaded
             ? `${update.assetName} is in your Downloads folder. Open the disk image and replace Aster manually; this download does not install it.`
@@ -400,7 +403,7 @@ export default function App() {
             <IconButton label="Open downloads folder" onClick={() => command("open-downloads")}><Download size={16} /></IconButton>
             {state.update?.available && (
               <IconButton label={`Update available: Aster ${state.update.version}`} active={panel === "update"} onClick={() => openPanel("update")}>
-                <Download size={16} /><span className="update-dot" />
+                <CircleArrowDown size={17} /><span className="update-dot" />
               </IconButton>
             )}
             <IconButton label="History" active={panel === "history"} onClick={() => openPanel("history")}><History size={16} /></IconButton>

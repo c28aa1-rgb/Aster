@@ -432,6 +432,9 @@ button { color: inherit; }
   background: #bd7047;
 }
 .update-content { width: min(820px, calc(100% - 64px)); }
+.update-title-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.update-title-row .panel-kicker { margin: 0; }
+.update-hero-icon { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid #b7d1d0; border-radius: 12px; color: #35616a; background: #e4f0ee; }
 .release-notes { margin: 30px 0; }
 .release-notes pre {
   max-height: min(42vh, 420px);
@@ -445,8 +448,14 @@ button { color: inherit; }
   font: 13px/1.65 "Instrument Sans", "Helvetica Neue", sans-serif;
   white-space: pre-wrap;
 }
-.update-download { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-.update-download progress { width: min(240px, 100%); accent-color: #35616a; }
+.update-download { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 18px; border: 1px solid #cbd9d7; border-radius: 14px; background: #edf4f2; }
+.update-progress-wrap { flex: 1 1 260px; min-width: 220px; }
+.update-progress-label { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: #527177; font-size: 11px; }
+.update-progress-label strong { color: #23494e; font-variant-numeric: tabular-nums; }
+.update-download progress { display: block; width: 100%; height: 8px; overflow: hidden; border: 0; border-radius: 99px; accent-color: #35616a; background: #d3e2df; }
+.update-download progress::-webkit-progress-bar { border-radius: 99px; background: #d3e2df; }
+.update-download progress::-webkit-progress-value { border-radius: 99px; background: linear-gradient(90deg, #35616a, #77b5ba); transition: width 180ms ease-out; }
+.download-complete { display: inline-flex; align-items: center; gap: 7px; color: #397463; font-size: 12px; font-weight: 700; }
 .update-download p { flex-basis: 100%; max-width: 580px; margin: 0; color: #64777b; font-size: 12px; line-height: 1.55; }
 .primary-button:disabled, .secondary-button:disabled { cursor: wait; opacity: 0.65; }
 .about-update-check { margin-top: 26px; }
@@ -640,6 +649,13 @@ input:focus-visible { outline-color: #35616a; }
 [data-theme="dark"] .about-lede,
 [data-theme="dark"] .about-grid span,
 [data-theme="dark"] .update-download p { color: #9bb3b7; }
+[data-theme="dark"] .update-hero-icon { color: #93c9cd; border-color: #45616d; background: #233943; }
+[data-theme="dark"] .update-download { border-color: #45616d; background: #1c2e37; }
+[data-theme="dark"] .update-progress-label { color: #aac0c5; }
+[data-theme="dark"] .update-progress-label strong { color: #e0eeed; }
+[data-theme="dark"] .update-download progress,
+[data-theme="dark"] .update-download progress::-webkit-progress-bar { background: #31454e; }
+[data-theme="dark"] .download-complete { color: #a2d5bd; }
 [data-theme="dark"] .text-button { color: #b5cccf; }
 [data-theme="dark"] .text-button:hover,
 [data-theme="dark"] .history-row:hover,

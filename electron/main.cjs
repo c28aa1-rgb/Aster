@@ -142,7 +142,13 @@ async function checkForUpdates() {
 
 function startUpdateChecks() {
   session.defaultSession.on("will-download", (event, item) => {
-    if (!availableUpdate || item.getURL() !== availableUpdate.asset.browser_download_url) return;
+    const expectedName = availableUpdate && `Aster-${availableUpdate.version}-${process.arch}.dmg`;
+    const isUpdateDownload = availableUpdate && (
+      item.getURL() === availableUpdate.asset.browser_download_url
+      || item.getFilename() === expectedName
+      || item.getURL().includes(`/Aster-${availableUpdate.version}-${process.arch}.dmg`)
+    );
+    if (!isUpdateDownload) return;
     const filename = `Aster-${availableUpdate.version}-${process.arch}.dmg`;
     const downloadPath = path.join(app.getPath("downloads"), filename);
     item.setSavePath(downloadPath);
