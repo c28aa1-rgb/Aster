@@ -572,8 +572,33 @@ async function initializeExtensionSupport() {
     },
     async createWindow(details) {
       const requestedUrl = Array.isArray(details.url) ? details.url[0] : details.url;
-      createTab(requestedUrl || newTabUrl());
-      return mainWindow;
+      const popupWindow = new BrowserWindow({
+        width: Math.max(360, Math.min(Number(details.width) || 460, 1100)),
+        height: Math.max(280, Math.min(Number(details.height) || 680, 900)),
+        minWidth: 320,
+        minHeight: 240,
+        show: true,
+        title: details.type === "popup" ? "Aster extension" : "Aster",
+        backgroundColor: theme === "dark" ? "#14232b" : "#F4F7F5",
+        webPreferences: {
+          session: browserSession,
+          contextIsolation: true,
+          sandbox: true,
+          nodeIntegration: false,
+        },
+      });
+      chromeExtensions.addTab(popupWindow.webContents, popupWindow);
+      popupWindow.webContents.setWindowOpenHandler(({ url }) => {
+        createTab(url);
+        return { action: "deny" };
+      });
+      popupWindow.once("closed", () => {
+        try { chromeExtensions.removeTab(popupWindow.webContents); } catch { /* Window is already gone. */ }
+      });
+      await popupWindow.loadURL(requestedUrl || newTabUrl());
+      popupWindow.show();
+      popupWindow.focus();
+      return popupWindow;
     },
     requestPermissions: requestExtensionPermissions,
   });
