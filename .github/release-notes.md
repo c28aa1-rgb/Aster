@@ -1,4 +1,4 @@
-## Aster 0.4.6
+## Aster 0.4.7
 
 - Replaces the toolbar three-dot menu with a settings button.
 - Adds a persistent dark mode toggle that applies to the browser chrome, settings panels, and new-tab page.
