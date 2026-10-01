@@ -1,7 +1,7 @@
 const { app, BrowserWindow, WebContentsView, dialog, ipcMain, nativeTheme, session, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { findAvailableRelease, parseAtomReleases } = require("./update-release.cjs");
+const { findAvailableRelease, parseAtomReleases, finishUpdateDownload, openDownloadedUpdate } = require("./update-release.cjs");
 const { installChromeWebStore, uninstallExtension } = require("electron-chrome-web-store");
 const { ElectronChromeExtensions } = require("electron-chrome-extensions");
 const { installExtensionPopupNavigation } = require("./extension-popup-navigation.cjs");
@@ -40,7 +40,7 @@ function restoreTheme() {
   nativeTheme.themeSource = theme;
 }
 let availableUpdate;
-let updateState = { checking: false, available: false, downloadStatus: "idle", progress: 0, error: "" };
+let updateState = { checking: false, available: false, downloadStatus: "idle", downloadedPath: "", progress: 0, error: "" };
 
 const isDev = !app.isPackaged;
 const rendererUrl = isDev
@@ -100,7 +100,7 @@ async function releaseAssetExists(release) {
 }
 
 async function checkForUpdates() {
-  if (updateState.checking) return updateState;
+  if (updateState.checking || updateState.downloadStatus === "downloading") return updateState;
   updateState = { ...updateState, checking: true, error: "" };
   emitUpdateState();
   try {
@@ -127,11 +127,12 @@ async function checkForUpdates() {
         version: availableUpdate.version,
         notes: availableUpdate.body || "No release notes were provided.",
         assetName: availableUpdate.asset.name,
-        downloadStatus: "idle",
-        progress: 0,
+        downloadStatus: availableUpdate.version === updateState.version ? updateState.downloadStatus : "idle",
+        downloadedPath: availableUpdate.version === updateState.version ? updateState.downloadedPath : "",
+        progress: availableUpdate.version === updateState.version ? updateState.progress : 0,
         error: "",
       }
-      : { checking: false, available: false, downloadStatus: "idle", progress: 0, error: "" };
+      : { checking: false, available: false, downloadStatus: "idle", downloadedPath: "", progress: 0, error: "" };
   } catch (error) {
     updateState = { ...updateState, checking: false, error: error.message || "Could not check for updates." };
     console.warn("Aster update check failed:", error.message);
@@ -152,7 +153,7 @@ function startUpdateChecks() {
     const filename = `Aster-${availableUpdate.version}-${process.arch}.dmg`;
     const downloadPath = path.join(app.getPath("downloads"), filename);
     item.setSavePath(downloadPath);
-    updateState = { ...updateState, downloadStatus: "downloading", progress: 0, error: "" };
+    updateState = { ...updateState, downloadStatus: "downloading", downloadedPath: "", progress: 0, error: "" };
     emitUpdateState();
     item.on("updated", () => {
       const total = item.getTotalBytes();
@@ -163,9 +164,7 @@ function startUpdateChecks() {
       emitUpdateState();
     });
     item.once("done", (_downloadEvent, state) => {
-      updateState = state === "completed"
-        ? { ...updateState, downloadStatus: "downloaded", progress: 100 }
-        : { ...updateState, downloadStatus: "idle", error: `Download ${state}.` };
+      updateState = finishUpdateDownload(updateState, state, item.getSavePath());
       emitUpdateState();
     });
   });
@@ -179,12 +178,12 @@ function downloadUpdate() {
   if (!availableUpdate || !mainWindow || mainWindow.isDestroyed()) {
     throw new Error("No update is available to download.");
   }
-  if (updateState.downloadStatus === "downloading") return false;
+  if (updateState.checking || updateState.downloadStatus === "downloading") return false;
   const assetUrl = new URL(availableUpdate.asset.browser_download_url);
   if (assetUrl.hostname !== "github.com" || !availableUpdate.asset.name.endsWith(".dmg")) {
     throw new Error("The update download link is not valid.");
   }
-  updateState = { ...updateState, downloadStatus: "downloading", progress: 0, error: "" };
+  updateState = { ...updateState, downloadStatus: "downloading", downloadedPath: "", progress: 0, error: "" };
   emitUpdateState();
   mainWindow.webContents.downloadURL(assetUrl.href);
   return true;
@@ -712,4 +711,16 @@ ipcMain.handle("browser:get-state", () => snapshot());
 ipcMain.handle("browser:command", handleCommand);
 ipcMain.handle("browser:check-updates", checkForUpdates);
 ipcMain.handle("browser:download-update", downloadUpdate);
+ipcMain.handle("browser:open-downloaded-update", async () => {
+  try {
+    const opened = await openDownloadedUpdate(updateState, app.getPath("downloads"), process.arch, (file) => shell.openPath(file));
+    updateState = { ...updateState, error: "" };
+    emitUpdateState();
+    return opened;
+  } catch (error) {
+    updateState = { ...updateState, error: error.message };
+    emitUpdateState();
+    return false;
+  }
+});
 ipcMain.on("browser:overlay", (_event, open) => setOverlay(open));

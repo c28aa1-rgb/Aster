@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("aster", {
   command: (type, payload) => ipcRenderer.invoke("browser:command", { type, payload }),
   checkForUpdates: () => ipcRenderer.invoke("browser:check-updates"),
   downloadUpdate: () => ipcRenderer.invoke("browser:download-update"),
+  openDownloadedUpdate: () => ipcRenderer.invoke("browser:open-downloaded-update"),
   setOverlay: (open) => ipcRenderer.send("browser:overlay", Boolean(open)),
   onState: (callback) => {
     const handler = (_event, state) => callback(state);

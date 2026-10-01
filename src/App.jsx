@@ -40,6 +40,7 @@ const bridge = window.aster || {
   onState: () => () => {},
   checkForUpdates: async () => null,
   downloadUpdate: async () => null,
+  openDownloadedUpdate: async () => null,
   onFocusAddress: () => () => {},
   onDismissOverlay: () => () => {},
 };
@@ -234,7 +235,7 @@ function HistoryPanel({ items, onOpen, onClear }) {
   );
 }
 
-function UpdatePanel({ update, onCheck, onDownload }) {
+function UpdatePanel({ update, onCheck, onDownload, onOpen }) {
   const downloaded = update.downloadStatus === "downloaded";
   const downloading = update.downloadStatus === "downloading";
   return (
@@ -256,16 +257,17 @@ function UpdatePanel({ update, onCheck, onDownload }) {
         <pre>{update.notes || "No release notes were provided."}</pre>
       </section>
       <div className="update-download">
-        <button className="primary-button" type="button" disabled={downloading || downloaded} onClick={onDownload}>
+        <button className="primary-button" type="button" disabled={update.checking || downloading || (downloaded && !update.error)} onClick={onDownload}>
           {downloaded ? <CheckCircle2 size={17} /> : <CircleArrowDown size={17} />}
-          {downloaded ? "Download complete" : downloading ? `Downloading ${update.progress || 0}%` : "Download update"}
+          {downloaded ? update.error ? "Download again" : "Download complete" : downloading ? `Downloading ${update.progress || 0}%` : "Download update"}
         </button>
+        {downloaded && <button className="secondary-button" type="button" onClick={onOpen}><ExternalLink size={17} />Open downloaded update</button>}
         {downloading && <div className="update-progress-wrap"><div className="update-progress-label"><span>Downloading Aster {update.version}</span><strong>{update.progress || 0}%</strong></div><progress max="100" value={update.progress || 0} aria-label="Download progress" /></div>}
         {downloaded && <div className="download-complete"><CheckCircle2 size={16} /><span>Ready in your Downloads folder</span></div>}
         <p>
           {downloaded
-            ? `${update.assetName} is in your Downloads folder. Open the disk image and replace Aster manually; this download does not install it.`
-            : "This downloads the disk image to Downloads. Open it and replace Aster yourself; the app cannot install an unsigned update automatically."}
+            ? `${update.assetName} is ready. Open the downloaded update, then replace Aster to finish installing.`
+            : "Save the update to Downloads, then open it and replace Aster to finish installing."}
         </p>
       </div>
     </div>
@@ -431,6 +433,7 @@ export default function App() {
                 update={state.update || {}}
                 onCheck={() => bridge.checkForUpdates().catch(console.error)}
                 onDownload={() => bridge.downloadUpdate().catch((error) => console.error("Update download failed:", error))}
+                onOpen={() => bridge.openDownloadedUpdate().catch((error) => console.error("Opening update failed:", error))}
               />
             ) : panel === "extensions" ? (
               <ExtensionsPanel

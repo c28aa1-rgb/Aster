@@ -1,3 +1,24 @@
+const fs = require("node:fs/promises");
+const path = require("node:path");
+
+function finishUpdateDownload(update, status, downloadedPath) {
+  return status === "completed"
+    ? { ...update, downloadStatus: "downloaded", downloadedPath, progress: 100, error: "" }
+    : { ...update, downloadStatus: "idle", downloadedPath: "", error: `Download ${status}.` };
+}
+
+async function openDownloadedUpdate(update, downloadsDirectory, arch, openPath) {
+  const expectedPath = path.join(downloadsDirectory, `Aster-${update.version}-${arch}.dmg`);
+  if (update.downloadStatus !== "downloaded" || update.downloadedPath !== expectedPath) {
+    throw new Error("No downloaded update is ready to open.");
+  }
+  const file = await fs.lstat(expectedPath).catch(() => null);
+  if (!file?.isFile()) throw new Error("The downloaded update is missing. Download it again.");
+  const error = await openPath(expectedPath);
+  if (error) throw new Error(`Could not open the downloaded update: ${error}`);
+  return true;
+}
+
 function compareVersions(left, right) {
   const parse = (version) => String(version).replace(/^v/i, "").split(".").map((part) => Number.parseInt(part, 10));
   const a = parse(left);
@@ -50,4 +71,4 @@ function parseAtomReleases(xml, arch) {
   }).filter(Boolean);
 }
 
-module.exports = { compareVersions, findAvailableRelease, parseAtomReleases };
+module.exports = { compareVersions, findAvailableRelease, parseAtomReleases, finishUpdateDownload, openDownloadedUpdate };
