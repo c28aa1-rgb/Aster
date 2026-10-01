@@ -1,6 +1,6 @@
-## Aster 0.4.11
+## Aster 0.4.12
 
-- Fixes Proton VPN's Next button failing to request browser permissions.
-- Supports the browser API namespace used by Proton's extension compatibility layer.
-- Prevents repeated permission requests from showing duplicate dialogs.
-- Update downloads remain manual: download the new DMG, then replace Aster.
+- Adds **Open downloaded update** after the update DMG finishes downloading.
+- Keeps completed downloads available when checking the same release again.
+- Shows opening errors and offers **Download again** if the saved update is missing or cannot open.
+- Installation remains manual: open the downloaded disk image, then replace Aster to finish installing.
