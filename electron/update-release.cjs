@@ -7,8 +7,8 @@ function finishUpdateDownload(update, status, downloadedPath) {
     : { ...update, downloadStatus: "idle", downloadedPath: "", error: `Download ${status}.` };
 }
 
-async function openDownloadedUpdate(update, downloadsDirectory, arch, openPath) {
-  const expectedPath = path.join(downloadsDirectory, `Aster-${update.version}-${arch}.dmg`);
+async function openDownloadedUpdate(update, downloadsDirectory, arch, openPath, closeApp) {
+  const expectedPath = path.join(downloadsDirectory, `Aster-Update-${update.version}-${arch}.dmg`);
   if (update.downloadStatus !== "downloaded" || update.downloadedPath !== expectedPath) {
     throw new Error("No downloaded update is ready to open.");
   }
@@ -16,6 +16,7 @@ async function openDownloadedUpdate(update, downloadsDirectory, arch, openPath) 
   if (!file?.isFile()) throw new Error("The downloaded update is missing. Download it again.");
   const error = await openPath(expectedPath);
   if (error) throw new Error(`Could not open the downloaded update: ${error}`);
+  closeApp();
   return true;
 }
 
@@ -38,7 +39,7 @@ function findAvailableRelease(releases, currentVersion, arch) {
     .sort((left, right) => compareVersions(right.version, left.version))
     .map((release) => ({
       ...release,
-      asset: release.assets?.find((asset) => asset.name === `Aster-${release.version}-${arch}.dmg`),
+      asset: release.assets?.find((asset) => asset.name === `Aster-Update-${release.version}-${arch}.dmg`),
     }))
     .find((release) => release.asset);
 }
@@ -64,8 +65,8 @@ function parseAtomReleases(xml, arch) {
       prerelease: false,
       body: content,
       assets: [{
-        name: `Aster-${version}-${arch}.dmg`,
-        browser_download_url: `https://github.com/c28aa1-rgb/Aster/releases/download/v${version}/Aster-${version}-${arch}.dmg`,
+        name: `Aster-Update-${version}-${arch}.dmg`,
+        browser_download_url: `https://github.com/c28aa1-rgb/Aster/releases/download/v${version}/Aster-Update-${version}-${arch}.dmg`,
       }],
     };
   }).filter(Boolean);

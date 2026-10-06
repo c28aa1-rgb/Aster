@@ -1,6 +1,5 @@
-## Aster 0.4.12
+## Aster 0.4.13
 
-- Adds **Open downloaded update** after the update DMG finishes downloading.
-- Keeps completed downloads available when checking the same release again.
-- Shows opening errors and offers **Download again** if the saved update is missing or cannot open.
-- Installation remains manual: open the downloaded disk image, then replace Aster to finish installing.
+- New tabs focus the address bar, and extension settings HTML pages open in tabs.
+- Aster finds releases while it stays open and shows the update without requiring a restart.
+- Downloading an update opens a simple DMG and closes Aster. Drag it to your Desktop and choose **Replace**.

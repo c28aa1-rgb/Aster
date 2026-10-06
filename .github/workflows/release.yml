@@ -32,7 +32,7 @@ jobs:
       - name: Publish one public release with downloads and update metadata
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          ASSETS=(artifacts/Aster-"$VERSION"-*.dmg artifacts/Aster-"$VERSION"-*.dmg.blockmap artifacts/Aster-"$VERSION"-*.zip artifacts/Aster-"$VERSION"-*.zip.blockmap artifacts/latest-mac.yml)
+          ASSETS=(artifacts/Aster-"$VERSION"-*.dmg artifacts/Aster-"$VERSION"-*.dmg.blockmap artifacts/Aster-Update-"$VERSION"-*.dmg artifacts/Aster-Update-"$VERSION"-*.dmg.blockmap artifacts/Aster-"$VERSION"-*.zip artifacts/Aster-"$VERSION"-*.zip.blockmap artifacts/latest-mac.yml)
           gh release create "$GITHUB_REF_NAME" "${ASSETS[@]}" \
             --title "Aster $VERSION" \
             --notes-file .github/release-notes.md \

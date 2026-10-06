@@ -266,8 +266,8 @@ function UpdatePanel({ update, onCheck, onDownload, onOpen }) {
         {downloaded && <div className="download-complete"><CheckCircle2 size={16} /><span>Ready in your Downloads folder</span></div>}
         <p>
           {downloaded
-            ? `${update.assetName} is ready. Open the downloaded update, then replace Aster to finish installing.`
-            : "Save the update to Downloads, then open it and replace Aster to finish installing."}
+            ? `${update.assetName} is ready. Open it, drag Aster to your Desktop, and choose Replace.`
+            : "The update opens automatically when the download finishes, then Aster closes. Drag Aster to your Desktop and choose Replace."}
         </p>
       </div>
     </div>
@@ -305,6 +305,10 @@ export default function App() {
     const offDismissOverlay = bridge.onDismissOverlay(() => setPanel(null));
     return () => { offState(); offFocus(); offDismissOverlay(); };
   }, []);
+
+  useEffect(() => {
+    setAddress(activeTab?.url || "");
+  }, [activeTab?.id]);
 
   useEffect(() => {
     if (!editing) setAddress(activeTab?.url || "");

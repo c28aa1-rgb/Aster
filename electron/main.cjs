@@ -2,6 +2,7 @@ const { app, BrowserWindow, WebContentsView, dialog, ipcMain, nativeTheme, sessi
 const fs = require("node:fs");
 const path = require("node:path");
 const { findAvailableRelease, parseAtomReleases, finishUpdateDownload, openDownloadedUpdate } = require("./update-release.cjs");
+const { normalizeInput: normalizeNavigationInput } = require("./navigation-input.cjs");
 const { installChromeWebStore, uninstallExtension } = require("electron-chrome-web-store");
 const { ElectronChromeExtensions } = require("electron-chrome-extensions");
 const { installExtensionPopupNavigation } = require("./extension-popup-navigation.cjs");
@@ -40,6 +41,7 @@ function restoreTheme() {
   nativeTheme.themeSource = theme;
 }
 let availableUpdate;
+let lastUpdateCheck = 0;
 let updateState = { checking: false, available: false, downloadStatus: "idle", downloadedPath: "", progress: 0, error: "" };
 
 const isDev = !app.isPackaged;
@@ -73,12 +75,7 @@ function displayUrl(url) {
 }
 
 function normalizeInput(value) {
-  const input = String(value || "").trim();
-  if (!input) return newTabUrl();
-  if (/^(https?|file):\/\//i.test(input)) return input;
-  if (/^(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i.test(input)) return `http://${input}`;
-  if (/^[\w.-]+\.[a-z]{2,}(\/.*)?$/i.test(input)) return `https://${input}`;
-  return `https://www.google.com/search?q=${encodeURIComponent(input)}`;
+  return normalizeNavigationInput(value, newTabUrl());
 }
 
 function emitUpdateState() {
@@ -101,6 +98,7 @@ async function releaseAssetExists(release) {
 
 async function checkForUpdates() {
   if (updateState.checking || updateState.downloadStatus === "downloading") return updateState;
+  lastUpdateCheck = Date.now();
   updateState = { ...updateState, checking: true, error: "" };
   emitUpdateState();
   try {
@@ -143,14 +141,10 @@ async function checkForUpdates() {
 
 function startUpdateChecks() {
   session.defaultSession.on("will-download", (event, item) => {
-    const expectedName = availableUpdate && `Aster-${availableUpdate.version}-${process.arch}.dmg`;
-    const isUpdateDownload = availableUpdate && (
-      item.getURL() === availableUpdate.asset.browser_download_url
-      || item.getFilename() === expectedName
-      || item.getURL().includes(`/Aster-${availableUpdate.version}-${process.arch}.dmg`)
-    );
+    const isUpdateDownload = availableUpdate && updateState.downloadStatus === "downloading"
+      && item.getURLChain().includes(availableUpdate.asset.browser_download_url);
     if (!isUpdateDownload) return;
-    const filename = `Aster-${availableUpdate.version}-${process.arch}.dmg`;
+    const filename = `Aster-Update-${availableUpdate.version}-${process.arch}.dmg`;
     const downloadPath = path.join(app.getPath("downloads"), filename);
     item.setSavePath(downloadPath);
     updateState = { ...updateState, downloadStatus: "downloading", downloadedPath: "", progress: 0, error: "" };
@@ -163,13 +157,14 @@ function startUpdateChecks() {
       };
       emitUpdateState();
     });
-    item.once("done", (_downloadEvent, state) => {
+    item.once("done", async (_downloadEvent, state) => {
       updateState = finishUpdateDownload(updateState, state, item.getSavePath());
       emitUpdateState();
+      if (state === "completed") await openUpdateAndClose();
     });
   });
   const initialCheck = setTimeout(() => checkForUpdates(), 5000);
-  const periodicCheck = setInterval(() => checkForUpdates(), 6 * 60 * 60 * 1000);
+  const periodicCheck = setInterval(() => checkForUpdates(), 15 * 60 * 1000);
   initialCheck.unref?.();
   periodicCheck.unref?.();
 }
@@ -298,6 +293,7 @@ function handleShortcut(tab, event, input) {
   const key = input.key.toLowerCase();
   if (key === "l") {
     event.preventDefault();
+    mainWindow.webContents.focus();
     mainWindow.webContents.send("browser:focus-address");
   } else if (key === "t") {
     event.preventDefault();
@@ -370,11 +366,13 @@ function createTab(url = newTabUrl()) {
   view.webContents.loadURL(normalizeInput(url));
   extensionPopupNavigation?.closePopup();
   if (shouldFocusAddress) {
-    setTimeout(() => {
+    mainWindow.webContents.focus();
+    mainWindow.webContents.send("browser:focus-address");
+    view.webContents.once("did-finish-load", () => {
       if (activeTabId === id && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send("browser:focus-address");
+        mainWindow.webContents.focus();
       }
-    }, 0);
+    });
   }
   return id;
 }
@@ -678,6 +676,9 @@ function createWindow() {
 
   mainWindow.loadURL(rendererUrl);
   mainWindow.on("resize", updateViewBounds);
+  mainWindow.on("focus", () => {
+    if (Date.now() - lastUpdateCheck >= 5 * 60 * 1000) checkForUpdates();
+  });
   mainWindow.webContents.on("before-input-event", (event, input) => {
     const tab = tabs.get(activeTabId);
     if (tab) handleShortcut(tab, event, input);
@@ -711,16 +712,15 @@ ipcMain.handle("browser:get-state", () => snapshot());
 ipcMain.handle("browser:command", handleCommand);
 ipcMain.handle("browser:check-updates", checkForUpdates);
 ipcMain.handle("browser:download-update", downloadUpdate);
-ipcMain.handle("browser:open-downloaded-update", async () => {
+async function openUpdateAndClose() {
   try {
-    const opened = await openDownloadedUpdate(updateState, app.getPath("downloads"), process.arch, (file) => shell.openPath(file));
-    updateState = { ...updateState, error: "" };
-    emitUpdateState();
-    return opened;
+    return await openDownloadedUpdate(updateState, app.getPath("downloads"), process.arch, (file) => shell.openPath(file), () => app.exit(0));
   } catch (error) {
     updateState = { ...updateState, error: error.message };
     emitUpdateState();
     return false;
   }
-});
+}
+
+ipcMain.handle("browser:open-downloaded-update", openUpdateAndClose);
 ipcMain.on("browser:overlay", (_event, open) => setOverlay(open));
