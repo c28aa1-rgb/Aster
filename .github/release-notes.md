@@ -1,5 +1,6 @@
-## Aster 0.4.13
+## Aster 0.4.14
 
-- New tabs focus the address bar, and extension settings HTML pages open in tabs.
-- Aster finds releases while it stays open and shows the update without requiring a restart.
-- Downloading an update opens a simple DMG and closes Aster. Drag it to your Desktop and choose **Replace**.
+- Saves browsing history, bookmarks, and open tabs across launches, with a bookmarks bar for quick access.
+- Adds a Downloads panel with progress, cancel, open, show-in-folder, and remove controls.
+- Adds a setting to disable live Google search suggestions while keeping local history suggestions.
+- Adds a clear browsing data action for history, cookies, cache, and site storage.
