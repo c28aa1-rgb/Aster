@@ -9,8 +9,9 @@ const { installExtensionPopupNavigation } = require("./extension-popup-navigatio
 const { installProxyExtensionApi } = require("./proxy-extension-api.cjs");
 const { installPatchedExtensionPreload } = require("./extension-runtime.cjs");
 
-const CHROME_HEIGHT = 112;
+const CHROME_HEIGHT = 148;
 const tabs = new Map();
+const downloadItems = new Map();
 let mainWindow;
 let activeTabId = null;
 let overlayOpen = false;
@@ -21,6 +22,11 @@ let pinnedExtensionIds = [];
 let chromeExtensions;
 let extensionPopupNavigation;
 let history = [];
+let bookmarks = [];
+let downloads = [];
+let remoteSuggestionsEnabled = true;
+let restoringSession = false;
+let nextDownloadId = 1;
 let theme = "light";
 
 function setTheme(value) {
@@ -56,6 +62,72 @@ function savedExtensionsPath() {
 
 function savedPinsPath() {
   return path.join(app.getPath("userData"), "pinned-extensions.json");
+}
+
+function savedHistoryPath() {
+  return path.join(app.getPath("userData"), "history.json");
+}
+
+function savedBookmarksPath() { return path.join(app.getPath("userData"), "bookmarks.json"); }
+function savedSessionPath() { return path.join(app.getPath("userData"), "session.json"); }
+function savedSettingsPath() { return path.join(app.getPath("userData"), "settings.json"); }
+function savedDownloadsPath() { return path.join(app.getPath("userData"), "downloads.json"); }
+
+function readJson(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; }
+}
+
+function writeJson(file, value) {
+  fs.mkdirSync(app.getPath("userData"), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(value));
+}
+
+function saveHistory() {
+  writeJson(savedHistoryPath(), history);
+}
+
+function saveBookmarks() { writeJson(savedBookmarksPath(), bookmarks); }
+function saveSettings() { writeJson(savedSettingsPath(), { remoteSuggestionsEnabled }); }
+function saveDownloads() { writeJson(savedDownloadsPath(), downloads.slice(0, 40)); }
+
+function saveSession() {
+  if (restoringSession || !tabs.size) return;
+  const ids = [...tabs.keys()];
+  writeJson(savedSessionPath(), {
+    activeIndex: Math.max(0, ids.indexOf(activeTabId)),
+    tabs: ids.map((id) => {
+      const tab = tabs.get(id);
+      return { url: tab.view.webContents.getURL() || tab.url };
+    }),
+  });
+}
+
+function restoreBrowserData() {
+  const savedHistory = readJson(savedHistoryPath(), []);
+  history = Array.isArray(savedHistory) ? savedHistory.filter((item) => typeof item?.url === "string").slice(0, 200) : [];
+  const savedBookmarks = readJson(savedBookmarksPath(), []);
+  bookmarks = Array.isArray(savedBookmarks) ? savedBookmarks.filter((item) => typeof item?.url === "string").slice(0, 200) : [];
+  const settings = readJson(savedSettingsPath(), {});
+  remoteSuggestionsEnabled = settings.remoteSuggestionsEnabled !== false;
+  const savedDownloads = readJson(savedDownloadsPath(), []);
+  downloads = Array.isArray(savedDownloads) ? savedDownloads.filter((item) => typeof item?.id === "string").map((item) =>
+    item.state === "downloading" || item.state === "paused" ? { ...item, state: "interrupted" } : item,
+  ).slice(0, 40) : [];
+  nextDownloadId = Math.max(0, ...downloads.map((item) => Number(item.id) || 0)) + 1;
+}
+
+function restoreSession() {
+  const saved = readJson(savedSessionPath(), null);
+  const urls = Array.isArray(saved?.tabs) ? saved.tabs.map((tab) => tab?.url).filter((url) => typeof url === "string" && url) : [];
+  if (!urls.length) { createTab(); return; }
+  restoringSession = true;
+  try {
+    const ids = urls.map((url) => createTab(url));
+    activateTab(ids[Math.min(saved.activeIndex || 0, ids.length - 1)]);
+  } finally {
+    restoringSession = false;
+    saveSession();
+  }
 }
 
 function webStoreExtensionsPath() {
@@ -143,24 +215,29 @@ function startUpdateChecks() {
   session.defaultSession.on("will-download", (event, item) => {
     const isUpdateDownload = availableUpdate && updateState.downloadStatus === "downloading"
       && item.getURLChain().includes(availableUpdate.asset.browser_download_url);
-    if (!isUpdateDownload) return;
-    const filename = `Aster-Update-${availableUpdate.version}-${process.arch}.dmg`;
-    const downloadPath = path.join(app.getPath("downloads"), filename);
-    item.setSavePath(downloadPath);
-    updateState = { ...updateState, downloadStatus: "downloading", downloadedPath: "", progress: 0, error: "" };
-    emitUpdateState();
-    item.on("updated", () => {
-      const total = item.getTotalBytes();
-      updateState = {
-        ...updateState,
-        progress: total > 0 ? Math.min(100, Math.round((item.getReceivedBytes() / total) * 100)) : 0,
-      };
+    if (isUpdateDownload) {
+      const filename = `Aster-Update-${availableUpdate.version}-${process.arch}.dmg`;
+      item.setSavePath(path.join(app.getPath("downloads"), filename));
+      updateState = { ...updateState, downloadStatus: "downloading", downloadedPath: "", progress: 0, error: "" };
       emitUpdateState();
+    }
+    const download = addDownload(item);
+    sendState();
+    item.on("updated", () => {
+      updateDownload(download.id, item);
+      if (isUpdateDownload) {
+        const total = item.getTotalBytes();
+        updateState = { ...updateState, progress: total > 0 ? Math.min(100, Math.round((item.getReceivedBytes() / total) * 100)) : 0 };
+        emitUpdateState();
+      }
     });
     item.once("done", async (_downloadEvent, state) => {
-      updateState = finishUpdateDownload(updateState, state, item.getSavePath());
-      emitUpdateState();
-      if (state === "completed") await openUpdateAndClose();
+      updateDownload(download.id, item, state === "completed" ? "completed" : state === "cancelled" ? "cancelled" : "interrupted");
+      if (isUpdateDownload) {
+        updateState = finishUpdateDownload(updateState, state, item.getSavePath());
+        emitUpdateState();
+        if (state === "completed") await openUpdateAndClose();
+      }
     });
   });
   const initialCheck = setTimeout(() => checkForUpdates(), 5000);
@@ -208,6 +285,9 @@ function snapshot() {
       pinned: pinnedExtensionIds.includes(extension.id),
     })),
     history: history.slice(0, 40),
+    bookmarks,
+    remoteSuggestionsEnabled,
+    downloads,
     update: updateState,
   };
 }
@@ -277,6 +357,7 @@ function syncTab(tab) {
   };
   if (Object.keys(next).every((key) => tab[key] === next[key])) return;
   Object.assign(tab, next);
+  saveSession();
   sendState();
 }
 
@@ -286,6 +367,62 @@ function recordHistory(tab) {
     { title: tab.title || tab.url, url: tab.url, visitedAt: Date.now() },
     ...history.filter((item) => item.url !== tab.url),
   ].slice(0, 200);
+  saveHistory();
+  saveSession();
+  sendState();
+}
+
+function toggleBookmark() {
+  const tab = tabs.get(activeTabId);
+  if (!tab || isNewTab(tab.url)) return;
+  if (bookmarks.some((item) => item.url === tab.url)) bookmarks = bookmarks.filter((item) => item.url !== tab.url);
+  else bookmarks = [{ url: tab.url, title: tab.title || tab.url }, ...bookmarks].slice(0, 200);
+  saveBookmarks();
+  sendState();
+}
+
+function removeBookmark(url) {
+  bookmarks = bookmarks.filter((item) => item.url !== url);
+  saveBookmarks();
+  sendState();
+}
+
+async function clearBrowsingData() {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: "warning", buttons: ["Cancel", "Clear data"], defaultId: 0, cancelId: 0,
+    title: "Clear browsing data", message: "Clear history, cookies, cache, and site data?",
+    detail: "This signs you out of websites and removes locally stored site data. Downloads and bookmarks stay saved.",
+  });
+  if (result.response !== 1) return false;
+  history = [];
+  saveHistory();
+  await session.defaultSession.clearStorageData({ storages: ["cookies", "localstorage", "indexdb", "serviceworkers", "cachestorage", "filesystem"] });
+  await session.defaultSession.clearCache();
+  sendState();
+  return true;
+}
+
+function addDownload(item) {
+  const id = String(nextDownloadId++);
+  const entry = {
+    id, filename: item.getFilename(), url: item.getURL(), path: item.getSavePath(),
+    received: item.getReceivedBytes(), total: item.getTotalBytes(), state: "downloading", startedAt: Date.now(),
+  };
+  downloads = [entry, ...downloads].slice(0, 40);
+  downloadItems.set(id, item);
+  saveDownloads();
+  return entry;
+}
+
+function updateDownload(id, item, state) {
+  downloads = downloads.map((download) => download.id === id ? {
+    ...download,
+    filename: item.getFilename(), path: item.getSavePath(), received: item.getReceivedBytes(),
+    total: item.getTotalBytes(), state: state || (item.isPaused() ? "paused" : "downloading"),
+  } : download);
+  if (state) downloadItems.delete(id);
+  saveDownloads();
+  sendState();
 }
 
 function handleShortcut(tab, event, input) {
@@ -390,6 +527,7 @@ function activateTab(id) {
     updateViewBounds();
     tab.view.webContents.focus();
   }
+  saveSession();
   sendState();
 }
 
@@ -403,6 +541,7 @@ function closeTab(id) {
   chromeExtensions?.removeTab(tab.view.webContents);
   tab.view.webContents.close();
   tabs.delete(targetId);
+  saveSession();
   if (tabs.size === 0) return createTab();
   if (activeTabId === targetId) activateTab(ids[index + 1] || ids[index - 1]);
   sendState();
@@ -641,17 +780,42 @@ async function handleCommand(_event, { type, payload }) {
     case "reload": tab?.view.webContents.reload(); break;
     case "stop": tab?.view.webContents.stop(); break;
     case "home": return tab?.view.webContents.loadURL(newTabUrl());
+    case "toggle-bookmark": return toggleBookmark();
+    case "remove-bookmark": return removeBookmark(payload?.url);
+    case "open-bookmark": return tab?.view.webContents.loadURL(normalizeInput(payload?.url));
     case "load-extension": return chooseExtension();
     case "remove-extension": return removeExtension(payload?.id);
     case "toggle-extension-pin": return toggleExtensionPin(payload?.id);
     case "open-web-store": return tab?.view.webContents.loadURL("https://chromewebstore.google.com/");
     case "open-external": return shell.openExternal(payload?.url);
     case "open-downloads": return shell.openPath(app.getPath("downloads"));
-    case "clear-history": history = []; sendState(); break;
+    case "open-download": return shell.openPath(payload?.path || "");
+    case "show-download": if (payload?.path) shell.showItemInFolder(payload.path); break;
+    case "cancel-download": downloadItems.get(String(payload?.id))?.cancel(); break;
+    case "remove-download": downloads = downloads.filter((item) => item.id !== String(payload?.id)); saveDownloads(); sendState(); break;
+    case "clear-browsing-data": return clearBrowsingData();
+    case "clear-history": history = []; saveHistory(); sendState(); break;
     default: throw new Error(`Unknown browser command: ${type}`);
   }
   syncTab(tab);
   return null;
+}
+
+async function suggestSearches(_event, input) {
+  if (!remoteSuggestionsEnabled) return [];
+  const query = typeof input === "string" ? input.trim().slice(0, 160) : "";
+  if (query.length < 2) return [];
+  try {
+    const response = await fetch(`https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(query)}`, {
+      signal: AbortSignal.timeout(2500),
+      headers: { "User-Agent": "Aster-Browser" },
+    });
+    if (!response.ok) return [];
+    const result = await response.json();
+    return Array.isArray(result?.[1]) ? result[1].filter((item) => typeof item === "string").slice(0, 6) : [];
+  } catch {
+    return [];
+  }
 }
 
 function createWindow() {
@@ -684,18 +848,20 @@ function createWindow() {
     if (tab) handleShortcut(tab, event, input);
   });
   mainWindow.on("closed", () => {
+    saveSession();
     for (const tab of tabs.values()) tab.view.webContents.close();
     tabs.clear();
     mainWindow = null;
   });
   mainWindow.webContents.on("did-finish-load", () => {
-    if (!tabs.size) createTab();
+    if (!tabs.size) restoreSession();
     sendState();
   });
 }
 
 app.whenReady().then(async () => {
   restoreTheme();
+  restoreBrowserData();
   await initializeExtensionSupport();
   createWindow();
   startUpdateChecks();
@@ -708,7 +874,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
+app.on("before-quit", saveSession);
+
 ipcMain.handle("browser:get-state", () => snapshot());
+ipcMain.handle("browser:suggest-searches", suggestSearches);
 ipcMain.handle("browser:command", handleCommand);
 ipcMain.handle("browser:check-updates", checkForUpdates);
 ipcMain.handle("browser:download-update", downloadUpdate);

@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   ArrowRight,
+  Bookmark,
   Check,
   CircleAlert,
   CircleArrowDown,
@@ -26,16 +27,20 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const emptyState = { activeTabId: null, tabs: [], extensions: [], history: [], update: { checking: false, available: false } };
+const emptyState = { activeTabId: null, tabs: [], extensions: [], history: [], bookmarks: [], downloads: [], remoteSuggestionsEnabled: true, update: { checking: false, available: false } };
 const previewState = {
   activeTabId: "1",
   tabs: [{ id: "1", title: "New tab", url: "", favicon: "", loading: false, canGoBack: false, canGoForward: false }],
   extensions: [],
   history: [],
+  bookmarks: [],
+  downloads: [],
+  remoteSuggestionsEnabled: true,
 };
 const bridge = window.aster || {
   getState: async () => previewState,
   command: async () => null,
+  suggestSearches: async () => [],
   setOverlay: () => {},
   onState: () => () => {},
   checkForUpdates: async () => null,
@@ -61,6 +66,35 @@ function IconButton({ label, disabled, active, children, onClick }) {
       {children}
     </motion.button>
   );
+}
+
+function addressSuggestions(history, input, commonSearches) {
+  const query = input.trim().toLowerCase();
+  if (!query) return [];
+  const suggestions = [];
+  for (const item of history) {
+    let search = "";
+    try {
+      const url = new URL(item.url);
+      if (/google\./i.test(url.hostname) && url.pathname === "/search") search = url.searchParams.get("q") || "";
+      else if (/bing\.com$/i.test(url.hostname)) search = url.searchParams.get("q") || "";
+    } catch { /* Non-web history entries have no search query. */ }
+    const candidates = search
+      ? [{ value: search, label: `Search: ${search}` }]
+      : [{ value: item.url, label: item.title }];
+    for (const suggestion of candidates) {
+      if ([suggestion.value, suggestion.label].some((value) => value?.toLowerCase().includes(query))
+        && !suggestions.some((existing) => existing.value === suggestion.value)) suggestions.push(suggestion);
+      if (suggestions.length === 8) return suggestions;
+    }
+  }
+  for (const value of commonSearches) {
+    if (value && value.toLowerCase().includes(query) && !suggestions.some((item) => item.value === value)) {
+      suggestions.push({ value, label: `Search: ${value}` });
+    }
+    if (suggestions.length === 8) break;
+  }
+  return suggestions;
 }
 
 function Tab({ tab, active, onActivate, onClose, reduceMotion }) {
@@ -216,7 +250,7 @@ function HistoryPanel({ items, onOpen, onClear }) {
         <div>
           <p className="panel-kicker">Recent paths</p>
           <h1>History</h1>
-          <p>Your latest destinations in this session.</p>
+          <p>Your recent destinations, saved on this device.</p>
         </div>
         {items.length > 0 && <button className="text-button" type="button" onClick={onClear}>Clear history</button>}
       </div>
@@ -230,6 +264,31 @@ function HistoryPanel({ items, onOpen, onClear }) {
         )) : (
           <div className="empty-state"><div className="empty-orbit"><History size={25} /></div><h2>Nothing here yet</h2><p>Pages you visit will appear here.</p></div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function DownloadsPanel({ items, onOpen, onShow, onCancel, onRemove }) {
+  const formatBytes = (bytes) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return (
+    <div className="panel-content history-content">
+      <div className="panel-heading"><div><p className="panel-kicker">Files from the web</p><h1>Downloads</h1><p>Current and recent downloads.</p></div></div>
+      <div className="history-list">
+        {items.length ? items.map((item) => {
+          const progress = item.total ? Math.min(100, Math.round(item.received / item.total * 100)) : 0;
+          return <article className="download-row" key={item.id}>
+            <Download size={18} />
+            <div className="download-row-copy"><strong>{item.filename}</strong><small>{item.state === "downloading" || item.state === "paused" ? `${formatBytes(item.received)}${item.total ? ` of ${formatBytes(item.total)}` : ""} · ${progress}%` : item.state}</small>
+              {(item.state === "downloading" || item.state === "paused") && <progress max="100" value={progress} aria-label={`${item.filename} download progress`} />}
+            </div>
+            <div className="download-row-actions">
+              {item.state === "completed" && <><button className="text-button" type="button" onClick={() => onOpen(item)}>Open</button><button className="text-button" type="button" onClick={() => onShow(item)}>Show</button></>}
+              {(item.state === "downloading" || item.state === "paused") && <button className="text-button danger" type="button" onClick={() => onCancel(item)}>Cancel</button>}
+              {item.state !== "downloading" && item.state !== "paused" && <button className="text-button" type="button" aria-label={`Remove ${item.filename}`} onClick={() => onRemove(item)}>Remove</button>}
+            </div>
+          </article>;
+        }) : <div className="empty-state"><div className="empty-orbit"><Download size={25} /></div><h2>No downloads yet</h2><p>Files you download will appear here.</p></div>}
       </div>
     </div>
   );
@@ -277,6 +336,7 @@ function UpdatePanel({ update, onCheck, onDownload, onOpen }) {
 export default function App() {
   const [state, setState] = useState(emptyState);
   const [address, setAddress] = useState("");
+  const [commonSearches, setCommonSearches] = useState([]);
   const [editing, setEditing] = useState(false);
   const [panel, setPanel] = useState(null);
   const [extensionError, setExtensionError] = useState("");
@@ -288,6 +348,8 @@ export default function App() {
     () => state.extensions.filter((extension) => extension.pinned && extension.hasAction),
     [state.extensions],
   );
+  const suggestions = useMemo(() => addressSuggestions(state.history, address, state.remoteSuggestionsEnabled === false ? [] : commonSearches), [state.history, address, commonSearches, state.remoteSuggestionsEnabled]);
+  const isBookmarked = Boolean(activeTab?.url && state.bookmarks.some((bookmark) => bookmark.url === activeTab.url));
   const focusAddress = () => {
     requestAnimationFrame(() => {
       addressRef.current?.focus();
@@ -313,6 +375,16 @@ export default function App() {
   useEffect(() => {
     if (!editing) setAddress(activeTab?.url || "");
   }, [activeTab?.url, editing]);
+
+  useEffect(() => {
+    const query = address.trim();
+    if (!editing || state.remoteSuggestionsEnabled === false || query.length < 2) { setCommonSearches([]); return; }
+    let current = true;
+    const timer = setTimeout(() => {
+      bridge.suggestSearches(query).then((items) => { if (current) setCommonSearches(items); }).catch(() => { if (current) setCommonSearches([]); });
+    }, 180);
+    return () => { current = false; clearTimeout(timer); };
+  }, [address, editing, state.remoteSuggestionsEnabled]);
 
   useEffect(() => {
     if (!panel && activeTab && !activeTab.url) focusAddress();
@@ -390,7 +462,12 @@ export default function App() {
               placeholder="Search or enter an address"
               aria-label="Search or enter an address"
               spellCheck={false}
+              autoComplete="off"
+              list="address-suggestions"
             />
+            <datalist id="address-suggestions">
+              {suggestions.map((suggestion) => <option key={suggestion.value} value={suggestion.value} label={suggestion.label} />)}
+            </datalist>
             {activeTab?.url?.startsWith("https://") && <span className="secure-mark"><ShieldCheck size={14} /> Secure</span>}
           </form>
 
@@ -406,7 +483,8 @@ export default function App() {
                 ))}
               </div>
             )}
-            <IconButton label="Open downloads folder" onClick={() => command("open-downloads")}><Download size={16} /></IconButton>
+            <IconButton label="Downloads" active={panel === "downloads"} onClick={() => openPanel("downloads")}><Download size={16} /></IconButton>
+            <IconButton label={isBookmarked ? "Remove bookmark" : "Bookmark this page"} active={isBookmarked} onClick={() => command("toggle-bookmark")}><Bookmark size={16} fill={isBookmarked ? "currentColor" : "none"} /></IconButton>
             {state.update?.available && (
               <IconButton label={`Update available: Aster ${state.update.version}`} active={panel === "update"} onClick={() => openPanel("update")}>
                 <CircleArrowDown size={17} /><span className="update-dot" />
@@ -418,6 +496,16 @@ export default function App() {
               {state.extensions.length > 0 && <span className="extension-count">{state.extensions.length}</span>}
             </IconButton>
             <IconButton label="Settings" active={panel === "settings"} onClick={() => openPanel("settings")}><Settings size={18} /></IconButton>
+          </div>
+        </div>
+        <div className="bookmarks-bar" aria-label="Bookmarks">
+          <div className="bookmarks-scroll">
+            {state.bookmarks.map((bookmark) => <div className="bookmark-item" key={bookmark.url}>
+              <button className="bookmark-open" type="button" title={bookmark.url} onClick={() => { setPanel(null); command("open-bookmark", { url: bookmark.url }); }}>
+                <Bookmark size={13} /><span>{bookmark.title || bookmark.url}</span>
+              </button>
+              <button className="bookmark-remove" type="button" aria-label={`Remove ${bookmark.title || bookmark.url}`} onClick={() => command("remove-bookmark", { url: bookmark.url })}><X size={12} /></button>
+            </div>)}
           </div>
         </div>
       </header>
@@ -458,6 +546,14 @@ export default function App() {
                 onOpen={(url) => navigate(url)}
                 onClear={() => command("clear-history")}
               />
+            ) : panel === "downloads" ? (
+              <DownloadsPanel
+                items={state.downloads}
+                onOpen={(item) => command("open-download", { path: item.path })}
+                onShow={(item) => command("show-download", { path: item.path })}
+                onCancel={(item) => command("cancel-download", { id: item.id })}
+                onRemove={(item) => command("remove-download", { id: item.id })}
+              />
             ) : (
               <div className="panel-content about-content">
                 <p className="panel-kicker">Make Aster yours</p>
@@ -469,6 +565,18 @@ export default function App() {
                     onClick={() => command("set-theme", { theme: state.theme === "dark" ? "light" : "dark" }).catch(console.error)}>
                     <span />
                   </button>
+                </div>
+                <div className="appearance-setting">
+                  <Search size={21} aria-hidden="true" />
+                  <div><strong id="search-suggestions-label">Search suggestions</strong><p>{state.remoteSuggestionsEnabled === false ? "Only your saved history is used for suggestions." : "Google receives what you type to suggest common searches."}</p></div>
+                  <button className="theme-switch" type="button" role="switch" aria-checked={state.remoteSuggestionsEnabled !== false} aria-labelledby="search-suggestions-label"
+                    onClick={() => { setCommonSearches([]); command("set-remote-suggestions", { enabled: state.remoteSuggestionsEnabled === false }).catch(console.error); }}>
+                    <span />
+                  </button>
+                </div>
+                <div className="clear-data-setting">
+                  <div><strong>Clear browsing data</strong><p>Remove history, cookies, cache, and saved site data.</p></div>
+                  <button className="secondary-button" type="button" onClick={() => command("clear-browsing-data").catch(console.error)}>Clear data</button>
                 </div>
                 <button className="secondary-button about-update-check" type="button" onClick={() => bridge.checkForUpdates().catch(console.error)} disabled={state.update?.checking}>
                   <RefreshCw className={state.update?.checking ? "spin" : ""} size={16} />

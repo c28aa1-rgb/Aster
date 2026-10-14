@@ -52,7 +52,7 @@ button { color: inherit; }
 .browser-chrome {
   position: relative;
   z-index: 10;
-  height: 112px;
+  height: 148px;
   background:
     linear-gradient(90deg, rgba(74, 78, 143, 0.08), transparent 35%),
     rgba(17, 13, 24, 0.96);
@@ -152,6 +152,17 @@ button { color: inherit; }
   -webkit-app-region: no-drag;
 }
 
+.bookmarks-bar { height: 36px; display: flex; align-items: center; padding: 0 15px; border-top: 1px solid rgba(230, 230, 250, 0.06); -webkit-app-region: no-drag; }
+.bookmarks-scroll { display: flex; align-items: center; gap: 5px; width: 100%; overflow-x: auto; scrollbar-width: none; }
+.bookmarks-scroll::-webkit-scrollbar { display: none; }
+.bookmark-item { display: flex; align-items: center; flex: 0 0 auto; max-width: 190px; border: 1px solid transparent; border-radius: 7px; color: #b6b0c2; }
+.bookmark-item:hover { background: rgba(164, 144, 194, 0.1); border-color: rgba(164, 144, 194, 0.08); color: var(--silver); }
+.bookmark-open, .bookmark-remove { display: flex; align-items: center; border: 0; color: inherit; background: transparent; cursor: pointer; }
+.bookmark-open { min-width: 0; gap: 7px; padding: 5px 4px 5px 7px; font-size: 11px; }
+.bookmark-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-remove { display: grid; place-items: center; width: 20px; height: 23px; padding: 0; opacity: .45; }
+.bookmark-remove:hover { opacity: 1; }
+
 .nav-cluster, .action-cluster { display: flex; align-items: center; gap: 3px; }
 
 .icon-button {
@@ -220,7 +231,7 @@ button { color: inherit; }
 .panel-layer {
   position: absolute;
   z-index: 4;
-  inset: 112px 0 0;
+  inset: 148px 0 0;
   overflow: auto;
   background:
     radial-gradient(circle at 74% 0%, rgba(74, 78, 143, 0.2), transparent 36%),
@@ -230,7 +241,7 @@ button { color: inherit; }
 .panel-layer::before {
   content: "";
   position: fixed;
-  inset: 112px 0 0;
+  inset: 148px 0 0;
   pointer-events: none;
   opacity: 0.035;
   background-image: url("./assets/orbital-dawn.jpg");
@@ -242,7 +253,7 @@ button { color: inherit; }
 .panel-close {
   position: fixed;
   z-index: 3;
-  top: 132px;
+  top: 168px;
   right: 24px;
   width: 34px;
   height: 34px;
@@ -410,6 +421,15 @@ button { color: inherit; }
 .history-row strong { font-size: 13px; font-weight: 400; }
 .history-row small { color: #746e7e; }
 .history-row svg { color: #716a7c; }
+.download-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 68px; padding: 12px 8px; border-bottom: 1px solid var(--line); }
+.download-row > svg { color: var(--cosmic-blue); }
+.download-row-copy { display: grid; min-width: 0; gap: 5px; }
+.download-row-copy strong, .download-row-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.download-row-copy strong { font-size: 13px; font-weight: 400; }
+.download-row-copy small { color: var(--muted); font-size: 11px; text-transform: capitalize; }
+.download-row-copy progress { width: 100%; height: 5px; accent-color: var(--cosmic-blue); }
+.download-row-actions { display: flex; align-items: center; gap: 8px; }
+.download-row-actions .text-button { padding: 5px 7px; }
 
 .about-content { padding-top: 96px; }
 .about-content h1 { max-width: 720px; margin: 0; font-size: clamp(46px, 7vw, 76px); font-weight: 400; line-height: .96; letter-spacing: -.055em; }
@@ -466,7 +486,7 @@ button { color: inherit; }
 
 @media (max-width: 980px) {
   .toolbar { grid-template-columns: auto minmax(180px, 1fr) auto; gap: 6px; }
-  .nav-cluster .icon-button:nth-child(4), .action-cluster .icon-button:first-child { display: none; }
+  .nav-cluster .icon-button:nth-child(4) { display: none; }
   .secure-mark { display: none; }
   .tabs-scroll { max-width: 66vw; }
 }
@@ -492,6 +512,9 @@ button { color: inherit; }
 }
 
 .tab-strip { background: #e9f0ef; }
+.bookmarks-bar { background: #f7faf8; border-top-color: #e1e9e7; }
+.bookmark-item { color: #526c70; }
+.bookmark-item:hover { color: #24474d; background: #e5eeec; border-color: #dbe7e4; }
 .tab { color: #63767a; }
 .tab:hover { color: #29464b; background: rgba(255, 255, 255, 0.48); }
 .tab.is-active { color: #1c3038; background: #f7faf8; border-color: #d7e1df; }
@@ -579,6 +602,9 @@ input:focus-visible { outline-color: #35616a; }
   margin: 32px 0 8px; padding: 24px 0;
   border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
 }
+.clear-data-setting { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 26px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.clear-data-setting strong { font-size: 15px; }
+.clear-data-setting p { margin: 6px 0 0; color: var(--muted); font-size: 13px; }
 .appearance-setting > svg { color: var(--cosmic-blue); flex: none; }
 .appearance-setting > div { flex: 1; }
 .appearance-setting strong { font-size: 15px; }
@@ -611,6 +637,9 @@ input:focus-visible { outline-color: #35616a; }
 [data-theme="dark"] .browser-chrome,
 [data-theme="dark"] .toolbar { background: #1c2e37; border-color: #31454e; }
 [data-theme="dark"] .tab-strip { background: #101f27; }
+[data-theme="dark"] .bookmarks-bar { background: #1c2e37; border-top-color: #31454e; }
+[data-theme="dark"] .bookmark-item { color: #aec6c9; }
+[data-theme="dark"] .bookmark-item:hover { color: #e0eeed; background: #2b444e; border-color: #3b5862; }
 [data-theme="dark"] .tab { color: #9bb3b7; }
 [data-theme="dark"] .tab:hover { color: #e0eeed; background: #233943; }
 [data-theme="dark"] .tab.is-active { color: #e0eeed; background: #1c2e37; border-color: #31454e; }

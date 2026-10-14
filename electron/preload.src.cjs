@@ -5,6 +5,7 @@ injectBrowserAction();
 
 contextBridge.exposeInMainWorld("aster", {
   getState: () => ipcRenderer.invoke("browser:get-state"),
+  suggestSearches: (query) => ipcRenderer.invoke("browser:suggest-searches", query),
   command: (type, payload) => ipcRenderer.invoke("browser:command", { type, payload }),
   checkForUpdates: () => ipcRenderer.invoke("browser:check-updates"),
   downloadUpdate: () => ipcRenderer.invoke("browser:download-update"),
