@@ -8,8 +8,11 @@ const { ElectronChromeExtensions } = require("electron-chrome-extensions");
 const { installExtensionPopupNavigation } = require("./extension-popup-navigation.cjs");
 const { installProxyExtensionApi } = require("./proxy-extension-api.cjs");
 const { installPatchedExtensionPreload } = require("./extension-runtime.cjs");
+const { installPatchedWebStorePreload } = require("./web-store-preload.cjs");
+const { parseExtensionPolicy } = require("./extension-policy.cjs");
 
 const CHROME_HEIGHT = 148;
+const EXTENSION_POLICY_URL = "https://raw.githubusercontent.com/c28aa1-rgb/Aster/main/extension-policy.json";
 const tabs = new Map();
 const downloadItems = new Map();
 let mainWindow;
@@ -25,6 +28,8 @@ let history = [];
 let bookmarks = [];
 let downloads = [];
 let remoteSuggestionsEnabled = true;
+let extensionPolicyDisabled = false;
+let extensionsDisabledUntilRestart = false;
 let restoringSession = false;
 let nextDownloadId = 1;
 let theme = "light";
@@ -241,7 +246,10 @@ function startUpdateChecks() {
     });
   });
   const initialCheck = setTimeout(() => checkForUpdates(), 5000);
-  const periodicCheck = setInterval(() => checkForUpdates(), 15 * 60 * 1000);
+  const periodicCheck = setInterval(() => {
+    checkForUpdates();
+    checkExtensionPolicy();
+  }, 15 * 60 * 1000);
   initialCheck.unref?.();
   periodicCheck.unref?.();
 }
@@ -261,11 +269,32 @@ function downloadUpdate() {
   return true;
 }
 
+async function checkExtensionPolicy() {
+  try {
+    const response = await fetch(EXTENSION_POLICY_URL, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+      headers: { Accept: "application/json", "User-Agent": "Aster-Browser" },
+    });
+    if (!response.ok) return;
+    extensionPolicyDisabled = parseExtensionPolicy(await response.text());
+    if (extensionPolicyDisabled) {
+      extensionsDisabledUntilRestart = true;
+      for (const extension of session.defaultSession.extensions.getAllExtensions()) {
+        session.defaultSession.extensions.removeExtension(extension.id);
+      }
+    }
+    sendState();
+  } catch (error) {
+    console.warn("Aster extension policy check failed:", error.message);
+  }
+}
+
 function snapshot() {
   return {
     theme,
     activeTabId,
-    tabs: [...tabs.values()].map(({ id, view, title, url, favicon, loading, canGoBack, canGoForward }) => ({
+    tabs: [...tabs.values()].map(({ id, view, title, url, favicon, loading, canGoBack, canGoForward, htmlFullscreen }) => ({
       id,
       webContentsId: view.webContents.id,
       title: isNewTab(url) ? "New tab" : title || "Loading…",
@@ -274,6 +303,8 @@ function snapshot() {
       loading,
       canGoBack,
       canGoForward,
+      muted: view.webContents.isAudioMuted(),
+      htmlFullscreen: Boolean(htmlFullscreen),
     })),
     extensions: extensions.map((extension) => ({
       id: extension.id,
@@ -284,6 +315,7 @@ function snapshot() {
       hasAction: extension.hasAction,
       pinned: pinnedExtensionIds.includes(extension.id),
     })),
+    extensionsDisabled: extensionPolicyDisabled || extensionsDisabledUntilRestart,
     history: history.slice(0, 40),
     bookmarks,
     remoteSuggestionsEnabled,
@@ -342,7 +374,8 @@ function updateViewBounds() {
   const tab = tabs.get(activeTabId);
   if (!mainWindow || !tab || overlayOpen) return;
   const [width, height] = mainWindow.getContentSize();
-  tab.view.setBounds({ x: 0, y: CHROME_HEIGHT, width, height: Math.max(0, height - CHROME_HEIGHT) });
+  const chromeHeight = tab.htmlFullscreen ? 0 : CHROME_HEIGHT;
+  tab.view.setBounds({ x: 0, y: chromeHeight, width, height: Math.max(0, height - chromeHeight) });
 }
 
 function syncTab(tab) {
@@ -468,6 +501,16 @@ function wireTab(tab) {
     tab.favicon = favicons[0] || "";
     sendState();
   });
+  wc.on("enter-html-full-screen", () => {
+    tab.htmlFullscreen = true;
+    updateViewBounds();
+    sendState();
+  });
+  wc.on("leave-html-full-screen", () => {
+    tab.htmlFullscreen = false;
+    updateViewBounds();
+    sendState();
+  });
   wc.on("before-input-event", (event, input) => handleShortcut(tab, event, input));
   wc.setWindowOpenHandler(({ url }) => {
     createTab(url);
@@ -525,7 +568,12 @@ function activateTab(id) {
   if (!overlayOpen) {
     mainWindow.contentView.addChildView(tab.view);
     updateViewBounds();
-    tab.view.webContents.focus();
+    if (isNewTab(tab.url)) {
+      mainWindow.webContents.focus();
+      mainWindow.webContents.send("browser:focus-address");
+    } else {
+      tab.view.webContents.focus();
+    }
   }
   saveSession();
   sendState();
@@ -584,7 +632,7 @@ function saveExtensions() {
 async function restoreExtensions() {
   try {
     unpackedExtensionPaths = JSON.parse(fs.readFileSync(savedExtensionsPath(), "utf8"));
-    for (const extensionPath of unpackedExtensionPaths) {
+    for (const extensionPath of extensionPolicyDisabled ? [] : unpackedExtensionPaths) {
       try {
         await loadExtensionFromPath(extensionPath, false);
       } catch (error) {
@@ -597,6 +645,7 @@ async function restoreExtensions() {
 }
 
 async function chooseExtension() {
+  if (extensionPolicyDisabled || extensionsDisabledUntilRestart) throw new Error("Extensions are currently disabled by Aster.");
   const result = await dialog.showOpenDialog(mainWindow, {
     title: "Load unpacked Chromium extension",
     buttonLabel: "Load extension",
@@ -619,6 +668,12 @@ async function removeExtension(id) {
       session: session.defaultSession,
       extensionsPath: webStoreExtensionsPath(),
     });
+    for (const tab of tabs.values()) {
+      const contents = tab.view.webContents;
+      if (!contents.isDestroyed() && contents.getURL().startsWith("https://chromewebstore.google.com/")) {
+        contents.send("chrome.management.onUninstalled", id);
+      }
+    }
   } else {
     session.defaultSession.extensions.removeExtension(id);
     unpackedExtensionPaths = unpackedExtensionPaths.filter(
@@ -632,6 +687,7 @@ async function removeExtension(id) {
 }
 
 async function confirmWebStoreInstall({ localizedName, manifest, icon, browserWindow }) {
+  if (extensionPolicyDisabled || extensionsDisabledUntilRestart) throw new Error("Extensions are currently disabled by Aster.");
   const permissions = [...new Set([
     ...(Array.isArray(manifest.permissions) ? manifest.permissions : []),
     ...(Array.isArray(manifest.host_permissions) ? manifest.host_permissions : []),
@@ -752,17 +808,21 @@ async function initializeExtensionSupport() {
   installPatchedExtensionPreload(browserSession);
   installProxyExtensionApi(chromeExtensions, browserSession);
   extensionPopupNavigation = installExtensionPopupNavigation(chromeExtensions, createTab);
-  browserSession.extensions.on("extension-loaded", refreshExtensions);
+  browserSession.extensions.on("extension-loaded", (_event, extension) => {
+    if (extensionPolicyDisabled || extensionsDisabledUntilRestart) browserSession.extensions.removeExtension(extension.id);
+    else refreshExtensions();
+  });
   browserSession.extensions.on("extension-unloaded", refreshExtensions);
   await installChromeWebStore({
     session: browserSession,
     extensionsPath: webStoreExtensionsPath(),
     autoUpdate: true,
-    loadExtensions: true,
+    loadExtensions: !extensionPolicyDisabled,
     allowUnpackedExtensions: false,
     minimumManifestVersion: 3,
     beforeInstall: confirmWebStoreInstall,
   });
+  installPatchedWebStorePreload(browserSession);
   await restoreExtensions();
   refreshExtensions();
 }
@@ -771,9 +831,16 @@ async function handleCommand(_event, { type, payload }) {
   const tab = tabs.get(activeTabId);
   switch (type) {
     case "set-theme": return setTheme(payload?.theme);
+    case "set-remote-suggestions": remoteSuggestionsEnabled = Boolean(payload?.enabled); saveSettings(); sendState(); break;
     case "new-tab": return createTab();
     case "close-tab": return closeTab(payload?.id);
     case "activate-tab": return activateTab(payload?.id);
+    case "toggle-tab-mute": {
+      const target = tabs.get(String(payload?.id));
+      if (target) target.view.webContents.setAudioMuted(!target.view.webContents.isAudioMuted());
+      sendState();
+      break;
+    }
     case "navigate": return tab?.view.webContents.loadURL(normalizeInput(payload?.value));
     case "back": if (tab?.view.webContents.navigationHistory.canGoBack()) tab.view.webContents.navigationHistory.goBack(); break;
     case "forward": if (tab?.view.webContents.navigationHistory.canGoForward()) tab.view.webContents.navigationHistory.goForward(); break;
@@ -862,6 +929,7 @@ function createWindow() {
 app.whenReady().then(async () => {
   restoreTheme();
   restoreBrowserData();
+  await checkExtensionPolicy();
   await initializeExtensionSupport();
   createWindow();
   startUpdateChecks();

@@ -60,6 +60,8 @@ button { color: inherit; }
   box-shadow: 0 12px 30px rgba(4, 3, 7, 0.18);
 }
 
+.app-shell.is-html-fullscreen .browser-chrome { display: none; }
+
 .tab-strip {
   height: 53px;
   display: flex;
@@ -91,7 +93,7 @@ button { color: inherit; }
   min-width: 132px;
   height: 40px;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) 22px;
+  grid-template-columns: 20px minmax(0, 1fr) 22px 22px;
   align-items: center;
   gap: 7px;
   padding: 0 8px 0 12px;
@@ -138,8 +140,23 @@ button { color: inherit; }
   padding: 0;
 }
 
-.tab:hover .tab-close, .tab.is-active .tab-close { opacity: 0.75; }
+.tab-mute {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  opacity: 0;
+}
+
+.tab:hover .tab-close, .tab.is-active .tab-close,
+.tab:hover .tab-mute, .tab.is-active .tab-mute { opacity: 0.75; }
 .tab-close:hover { background: rgba(230, 230, 250, 0.1); opacity: 1; }
+.tab-mute:hover { background: rgba(230, 230, 250, 0.1); opacity: 1; }
 
 .toolbar {
   height: 59px;
@@ -521,6 +538,7 @@ button { color: inherit; }
 .tab-light { height: 2px; background: var(--cosmic-blue); box-shadow: none; }
 .favicon-shell { color: #547d80; }
 .tab-close { color: #4c656a; }
+.tab-mute { color: #4c656a; }
 .tab-close:hover { background: #e3ecea; }
 
 .toolbar { background: #f7faf8; }

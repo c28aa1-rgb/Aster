@@ -1,6 +1,6 @@
 {
   "name": "aster-browser",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "description": "A calm, extension-capable Chromium browser for macOS.",
   "author": "Aster",
   "repository": {
@@ -12,15 +12,18 @@
   "type": "module",
   "scripts": {
     "build:extension-runtime": "node scripts/build-extension-runtime.cjs",
+    "build:web-store-preload": "node scripts/build-web-store-preload.cjs",
     "build:new-tab": "node scripts/build-new-tab.cjs",
-    "build:preload": "esbuild electron/preload.src.cjs --bundle --platform=node --format=cjs --external:electron --outfile=electron/preload.cjs && npm run build:extension-runtime && npm run build:new-tab",
+    "build:preload": "esbuild electron/preload.src.cjs --bundle --platform=node --format=cjs --external:electron --outfile=electron/preload.cjs && npm run build:extension-runtime && npm run build:web-store-preload && npm run build:new-tab",
     "dev": "npm run build:preload && concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5187 && electron .\"",
     "build": "npm run build:preload && vite build",
     "start": "electron .",
     "dist": "npm run build && electron-builder --mac",
     "release": "npm run build && electron-builder --mac --publish never && electron-builder --mac --config build/update-dmg.cjs --publish never",
     "test:extension": "electron test/extension-smoke.cjs",
-    "test:web-store": "electron test/web-store-smoke.cjs",
+    "test:web-store": "npm run build:web-store-preload && electron test/web-store-smoke.cjs",
+    "test:navigation-input": "node test/navigation-input-smoke.cjs",
+    "test:web-store-reinstall": "electron test/web-store-reinstall-smoke.cjs",
     "test:browser-action": "npm run build:preload && electron test/browser-action-smoke.cjs",
     "test:overlay": "node test/packaged-overlay-smoke.mjs",
     "test:new-tab": "npm run build:new-tab && electron test/new-tab-smoke.cjs",

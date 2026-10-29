@@ -12,12 +12,20 @@ const downloads = path.join(profile, "downloads");
 fs.mkdirSync(downloads);
 app.setPath("downloads", downloads);
 const realExit = app.exit.bind(app);
+let policyDisable = false;
 global.fetch = async (url) => ({
   ok: true,
-  text: async () => '<entry><title>v999.0.0</title></entry>',
+  text: async () => String(url).includes("extension-policy.json")
+    ? JSON.stringify({ disableExtensions: policyDisable })
+    : '<entry><title>v999.0.0</title></entry>',
 });
 Object.defineProperty(app, "isPackaged", { value: true });
 require("../electron/main.cjs");
+const intervals = [];
+global.setInterval = (callback, delay) => {
+  intervals.push({ callback, delay });
+  return { unref() {} };
+};
 
 async function waitFor(check) {
   const deadline = Date.now() + 15000;
@@ -56,6 +64,24 @@ app.whenReady().then(async () => {
     assert.equal(window.webContents.isFocused(), true);
     console.log("NEW_TAB_ADDRESS_FOCUS_AND_TYPING_OK");
 
+    const appState = () => run('window.aster.getState()');
+    const tabsNow = await appState();
+    await run(`window.aster.command("toggle-tab-mute", { id: ${JSON.stringify(tabsNow.activeTabId)} })`);
+    assert.equal((await appState()).tabs.find(tab => tab.id === tabsNow.activeTabId).muted, true);
+    await run(`window.aster.command("toggle-tab-mute", { id: ${JSON.stringify(tabsNow.activeTabId)} })`);
+    assert.equal((await appState()).tabs.find(tab => tab.id === tabsNow.activeTabId).muted, false);
+    const activeWebContents = webContents.fromId(tabsNow.tabs.find(tab => tab.id === tabsNow.activeTabId).webContentsId);
+    activeWebContents.emit("enter-html-full-screen");
+    assert.equal((await appState()).tabs.find(tab => tab.id === tabsNow.activeTabId).htmlFullscreen, true);
+    activeWebContents.emit("leave-html-full-screen");
+    assert.equal((await appState()).tabs.find(tab => tab.id === tabsNow.activeTabId).htmlFullscreen, false);
+    await run(`window.aster.command("activate-tab", { id: ${JSON.stringify(tabsNow.tabs[0].id)} })`);
+    await waitFor(addressFocused);
+    assert.equal(window.webContents.isFocused(), true);
+    window.webContents.insertText("returning search");
+    await waitFor(() => run('document.activeElement.value === "returning search"'));
+    console.log("TAB_MUTE_FULLSCREEN_AND_RETURN_FOCUS_OK");
+
     const html = path.join(profile, "local help.html");
     fs.writeFileSync(html, "<!doctype html><title>Local HTML works</title>");
     await run(`window.aster.command("navigate", { value: ${JSON.stringify(html)} })`);
@@ -78,6 +104,13 @@ app.whenReady().then(async () => {
     }
     console.log("LOCAL_HTML_AND_EXTENSION_SETTINGS_OK");
 
+    policyDisable = true;
+    intervals.find(interval => interval.delay === 15 * 60 * 1000)?.callback();
+    await waitFor(async () => (await run('window.aster.getState()')).extensionsDisabled);
+    assert.equal(session.defaultSession.extensions.getAllExtensions().some(item => item.id === extension.id), false);
+    assert.equal(fs.existsSync(path.join(fixture, "manifest.json")), true);
+    console.log("GLOBAL_EXTENSION_POLICY_UNLOADS_WITHOUT_DELETING_OK");
+
     const update = await run('window.aster.checkForUpdates()');
     assert.equal(update.assetName, `Aster-Update-999.0.0-${process.arch}.dmg`);
     const sequence = [];
@@ -87,6 +120,11 @@ app.whenReady().then(async () => {
       const item = new EventEmitter();
       let savedPath;
       item.getURLChain = () => [url];
+      item.getURL = () => url;
+      item.getFilename = () => update.assetName;
+      item.getReceivedBytes = () => 100;
+      item.getTotalBytes = () => 100;
+      item.isPaused = () => false;
       item.setSavePath = value => { savedPath = value; };
       item.getSavePath = () => savedPath;
       session.defaultSession.emit("will-download", {}, item);

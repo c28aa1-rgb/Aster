@@ -23,11 +23,13 @@ import {
   ShieldCheck,
   Sparkles,
   Store,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const emptyState = { activeTabId: null, tabs: [], extensions: [], history: [], bookmarks: [], downloads: [], remoteSuggestionsEnabled: true, update: { checking: false, available: false } };
+const emptyState = { activeTabId: null, tabs: [], extensions: [], extensionsDisabled: false, history: [], bookmarks: [], downloads: [], remoteSuggestionsEnabled: true, update: { checking: false, available: false } };
 const previewState = {
   activeTabId: "1",
   tabs: [{ id: "1", title: "New tab", url: "", favicon: "", loading: false, canGoBack: false, canGoForward: false }],
@@ -97,7 +99,7 @@ function addressSuggestions(history, input, commonSearches) {
   return suggestions;
 }
 
-function Tab({ tab, active, onActivate, onClose, reduceMotion }) {
+function Tab({ tab, active, onActivate, onClose, onMute, reduceMotion }) {
   return (
     <motion.div
       layout
@@ -122,6 +124,15 @@ function Tab({ tab, active, onActivate, onClose, reduceMotion }) {
         )}
       </span>
       <span className="tab-title">{tab.title}</span>
+      <button
+        className="tab-mute"
+        type="button"
+        aria-label={`${tab.muted ? "Unmute" : "Mute"} ${tab.title}`}
+        title={`${tab.muted ? "Unmute" : "Mute"} tab`}
+        onClick={(event) => { event.stopPropagation(); onMute(); }}
+      >
+        {tab.muted ? <VolumeX size={13} /> : <Volume2 size={13} />}
+      </button>
       <button
         className="tab-close"
         type="button"
@@ -171,7 +182,7 @@ function PinnedExtensionAction({ extension, tabId }) {
   return <span className="pinned-action-host" ref={hostRef} />;
 }
 
-function ExtensionsPanel({ extensions, onBrowseStore, onLoad, onRemove, onTogglePin, error, loading }) {
+function ExtensionsPanel({ extensions, disabled, onBrowseStore, onLoad, onRemove, onTogglePin, error, loading }) {
   return (
     <div className="panel-content">
       <div className="panel-heading">
@@ -182,15 +193,17 @@ function ExtensionsPanel({ extensions, onBrowseStore, onLoad, onRemove, onToggle
           <small className="panel-hint">Pin an extension here to place its controls in the toolbar.</small>
         </div>
         <div className="extension-actions">
-          <motion.button className="secondary-button" type="button" onClick={onLoad} whileTap={{ scale: 0.97 }}>
+          <motion.button className="secondary-button" type="button" disabled={disabled || loading} onClick={onLoad} whileTap={{ scale: 0.97 }}>
             {loading ? <LoaderCircle className="spin" size={17} /> : <Plus size={17} />}
             Load unpacked
           </motion.button>
-          <motion.button className="primary-button" type="button" onClick={onBrowseStore} whileTap={{ scale: 0.97 }}>
+          <motion.button className="primary-button" type="button" disabled={disabled} onClick={onBrowseStore} whileTap={{ scale: 0.97 }}>
             <Store size={17} /> Chrome Web Store
           </motion.button>
         </div>
       </div>
+
+      {disabled && <div className="error-callout"><CircleAlert size={18} /> Extensions are temporarily disabled for all Aster installations. Aster checks for policy changes every 15 minutes; restart after they are re-enabled to restore them.</div>}
 
       {error && (
         <motion.div className="error-callout" initial={{ x: -8, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
@@ -225,7 +238,13 @@ function ExtensionsPanel({ extensions, onBrowseStore, onLoad, onRemove, onToggle
               <button className="text-button danger" type="button" onClick={() => onRemove(extension.id)}>Remove</button>
             </div>
           </motion.article>
-        )) : (
+        )) : disabled ? (
+          <div className="empty-state">
+            <div className="empty-orbit"><Puzzle size={25} /></div>
+            <h2>Extensions are paused</h2>
+            <p>Installed extensions remain on this device and can be restored after the global policy is lifted and Aster restarts.</p>
+          </div>
+        ) : (
           <div className="empty-state">
             <div className="empty-orbit"><Puzzle size={25} /></div>
             <h2>No extensions loaded</h2>
@@ -419,7 +438,7 @@ export default function App() {
   };
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${activeTab?.htmlFullscreen ? " is-html-fullscreen" : ""}`}>
       <header className="browser-chrome">
         <div className="tab-strip" role="tablist" aria-label="Open tabs">
           <div className="traffic-light-space" />
@@ -432,6 +451,7 @@ export default function App() {
                   active={tab.id === state.activeTabId}
                   reduceMotion={reduceMotion}
                   onActivate={() => command("activate-tab", { id: tab.id })}
+                  onMute={() => command("toggle-tab-mute", { id: tab.id })}
                   onClose={() => command("close-tab", { id: tab.id })}
                 />
               ))}
@@ -530,6 +550,7 @@ export default function App() {
             ) : panel === "extensions" ? (
               <ExtensionsPanel
                 extensions={state.extensions}
+                disabled={state.extensionsDisabled}
                 onBrowseStore={() => {
                   setPanel(null);
                   command("open-web-store");
