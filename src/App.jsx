@@ -358,6 +358,7 @@ export default function App() {
   const [commonSearches, setCommonSearches] = useState([]);
   const [editing, setEditing] = useState(false);
   const [panel, setPanel] = useState(null);
+  const [tabContextMenu, setTabContextMenu] = useState(null);
   const [extensionError, setExtensionError] = useState("");
   const [loadingExtension, setLoadingExtension] = useState(false);
   const addressRef = useRef(null);
@@ -414,6 +415,18 @@ export default function App() {
   }, [panel]);
 
   useEffect(() => {
+    if (!tabContextMenu) return;
+    const close = () => setTabContextMenu(null);
+    const closeOnEscape = (event) => { if (event.key === "Escape") close(); };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [tabContextMenu]);
+
+  useEffect(() => {
     document.documentElement.dataset.theme = state.theme || "light";
   }, [state.theme]);
 
@@ -438,9 +451,17 @@ export default function App() {
   };
 
   return (
-    <div className={`app-shell${activeTab?.htmlFullscreen ? " is-html-fullscreen" : ""}`}>
+    <div className={`app-shell${activeTab?.htmlFullscreen ? " is-html-fullscreen" : ""}${state.browserChromeHidden ? " is-browser-chrome-hidden" : ""}`}>
       <header className="browser-chrome">
-        <div className="tab-strip" role="tablist" aria-label="Open tabs">
+        <div
+          className="tab-strip"
+          role="tablist"
+          aria-label="Open tabs"
+          onContextMenu={(event) => {
+            event.preventDefault();
+            setTabContextMenu({ x: Math.min(event.clientX, window.innerWidth - 210), y: Math.min(event.clientY, window.innerHeight - 54) });
+          }}
+        >
           <div className="traffic-light-space" />
           <div className="tabs-scroll">
             <AnimatePresence initial={false}>
@@ -460,6 +481,18 @@ export default function App() {
           <IconButton label="New tab" onClick={() => command("new-tab")}><Plus size={16} /></IconButton>
           <div className="window-drag" />
         </div>
+        {tabContextMenu && (
+          <div className="tab-context-menu" role="menu" style={{ left: tabContextMenu.x, top: tabContextMenu.y }} onClick={(event) => event.stopPropagation()}>
+            <button type="button" role="menuitem" onClick={() => {
+              setTabContextMenu(null);
+              command("toggle-window-fullscreen");
+            }}>{state.windowFullscreen ? "Exit full screen" : "Full screen"}</button>
+            <button type="button" role="menuitem" onClick={() => {
+              setTabContextMenu(null);
+              command("toggle-browser-chrome");
+            }}>{state.browserChromeHidden ? "Show tabs and toolbar" : "Hide tabs and toolbar"}</button>
+          </div>
+        )}
 
         <div className="toolbar">
           <div className="nav-cluster">

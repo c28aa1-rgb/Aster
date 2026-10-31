@@ -66,9 +66,6 @@ function installProxyExtensionApi(extensionApis, browserSession) {
 
   const apply = async (extensionId, value) => {
     debug("apply requested", extensionId, JSON.stringify(value));
-    if (controllingExtensionId && controllingExtensionId !== extensionId) {
-      throw new Error("The proxy is controlled by another extension");
-    }
     await browserSession.setProxy(toElectronProxyConfig(value));
     debug("proxy applied", extensionId);
     await browserSession.closeAllConnections();

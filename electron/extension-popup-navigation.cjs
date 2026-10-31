@@ -52,6 +52,18 @@ function installExtensionPopupNavigation(extensionApis, openTab) {
 
   return {
     closePopup,
+    async withActivePopupOpen(extensionId, action) {
+      const popup = activePopup;
+      const window = popup?.extensionId === extensionId ? popup.browserWindow : null;
+      if (!window || window.isDestroyed() || typeof popup.maybeClose !== "function") return action();
+      // Keep extension callbacks alive while the native permission dialog takes focus.
+      window.off("blur", popup.maybeClose);
+      try {
+        return await action();
+      } finally {
+        if (!window.isDestroyed()) window.on("blur", popup.maybeClose);
+      }
+    },
     dispose() {
       extensionApis.off("browser-action-popup-created", handlePopup);
       closePopup();

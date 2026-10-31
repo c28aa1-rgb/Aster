@@ -1,5 +1,4 @@
-## Aster 0.4.15
+## Aster 0.4.16
 
-- Adds per-tab audio controls and hides browser controls during video fullscreen.
-- Fixes search-field focus when returning to a New Tab page.
-- Improves extension and browser navigation reliability.
+- Adds tab bar options to enter macOS fullscreen with browser controls visible or hide the controls for a page-only view.
+- Shows an in-page error with the failed address and a retry link when a website cannot load.

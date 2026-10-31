@@ -75,6 +75,30 @@ app.whenReady().then(async () => {
     assert.equal((await appState()).tabs.find(tab => tab.id === tabsNow.activeTabId).htmlFullscreen, true);
     activeWebContents.emit("leave-html-full-screen");
     assert.equal((await appState()).tabs.find(tab => tab.id === tabsNow.activeTabId).htmlFullscreen, false);
+    activeWebContents.emit("before-input-event", { preventDefault() {} }, { key: "F11", meta: false, control: false });
+    await waitFor(async () => (await appState()).browserChromeHidden === true);
+    assert.equal(await run('document.querySelector(".app-shell").classList.contains("is-browser-chrome-hidden")'), true);
+    activeWebContents.emit("before-input-event", { preventDefault() {} }, { key: "F11", meta: false, control: false });
+    await waitFor(async () => (await appState()).browserChromeHidden === false);
+    assert.equal(await run('document.querySelector(".app-shell").classList.contains("is-browser-chrome-hidden")'), false);
+    const requestedFullscreenStates = [];
+    const actualSetFullScreen = window.setFullScreen.bind(window);
+    const actualIsFullScreen = window.isFullScreen.bind(window);
+    window.isFullScreen = () => false;
+    window.setFullScreen = value => requestedFullscreenStates.push(value);
+    await run('document.querySelector(".tab-strip").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 120, clientY: 30 }))');
+    await waitFor(() => run('[...document.querySelectorAll(".tab-context-menu button")].some(button => button.innerText === "Full screen")'));
+    await run('[...document.querySelectorAll(".tab-context-menu button")].find(button => button.innerText === "Hide tabs and toolbar").click()');
+    await waitFor(async () => (await appState()).browserChromeHidden === true);
+    activeWebContents.emit("before-input-event", { preventDefault() {} }, { key: "Escape", meta: false, control: false });
+    await waitFor(async () => (await appState()).browserChromeHidden === false);
+    await run('document.querySelector(".tab-strip").dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 120, clientY: 30 }))');
+    await waitFor(() => run('[...document.querySelectorAll(".tab-context-menu button")].some(button => button.innerText === "Full screen")'));
+    await run('[...document.querySelectorAll(".tab-context-menu button")].find(button => button.innerText === "Full screen").click()');
+    await waitFor(() => requestedFullscreenStates.length === 1);
+    assert.deepEqual(requestedFullscreenStates, [true]);
+    window.isFullScreen = actualIsFullScreen;
+    window.setFullScreen = actualSetFullScreen;
     await run(`window.aster.command("activate-tab", { id: ${JSON.stringify(tabsNow.tabs[0].id)} })`);
     await waitFor(addressFocused);
     assert.equal(window.webContents.isFocused(), true);
@@ -86,6 +110,17 @@ app.whenReady().then(async () => {
     fs.writeFileSync(html, "<!doctype html><title>Local HTML works</title>");
     await run(`window.aster.command("navigate", { value: ${JSON.stringify(html)} })`);
     await waitFor(() => webContents.getAllWebContents().some(w => w.getURL() === pathToFileURL(html).href && w.getTitle() === "Local HTML works"));
+
+    const failedUrl = "http://127.0.0.1:65000/aster-navigation-failure";
+    await run(`window.aster.command("navigate", { value: ${JSON.stringify(failedUrl)} })`);
+    await waitFor(async () => {
+      const state = await appState();
+      const current = state.tabs.find(tab => tab.id === state.activeTabId);
+      const contents = webContents.fromId(current?.webContentsId);
+      return current?.url === failedUrl && contents?.getURL().startsWith("data:text/html;charset=utf-8,")
+        && await contents.executeJavaScript('document.body.innerText.includes("This page couldn’t load")');
+    });
+    console.log("FAILED_NAVIGATION_ERROR_PAGE_OK");
 
     const fixture = path.join(profile, "extension");
     fs.mkdirSync(fixture);

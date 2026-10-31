@@ -31,6 +31,8 @@ let remoteSuggestionsEnabled = true;
 let extensionPolicyDisabled = false;
 let extensionsDisabledUntilRestart = false;
 let restoringSession = false;
+let browserChromeHidden = false;
+let windowFullscreen = false;
 let nextDownloadId = 1;
 let theme = "light";
 
@@ -149,6 +151,17 @@ function isNewTab(url) {
 
 function displayUrl(url) {
   return isNewTab(url) ? "" : url;
+}
+
+function navigationErrorPage(url, description) {
+  const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[char]);
+  const safeUrl = escapeHtml(url);
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Page failed to load</title><style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f4f7f5;color:#1c3038;font:16px -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif}.card{width:min(560px,calc(100% - 40px));padding:38px;border:1px solid #dce5e2;border-radius:18px;background:#fff;box-shadow:0 16px 50px #14232b12}h1{margin:0 0 12px;font-size:25px}p{line-height:1.55;color:#64777b}.url{overflow-wrap:anywhere;color:#1c3038;font-weight:600}.reason{font-size:13px}.retry{display:inline-block;margin-top:10px;padding:10px 16px;border-radius:9px;background:#35616a;color:white;text-decoration:none;font-weight:600}
+    </style></head><body><main class="card"><h1>This page couldn’t load</h1><p>Aster couldn’t reach:</p><p class="url">${safeUrl}</p><p class="reason">${escapeHtml(description || "Check your connection and try again.")}</p><a class="retry" href="${safeUrl}">Try again</a></main></body></html>`;
+  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
 function normalizeInput(value) {
@@ -294,6 +307,8 @@ function snapshot() {
   return {
     theme,
     activeTabId,
+    browserChromeHidden,
+    windowFullscreen,
     tabs: [...tabs.values()].map(({ id, view, title, url, favicon, loading, canGoBack, canGoForward, htmlFullscreen }) => ({
       id,
       webContentsId: view.webContents.id,
@@ -374,7 +389,7 @@ function updateViewBounds() {
   const tab = tabs.get(activeTabId);
   if (!mainWindow || !tab || overlayOpen) return;
   const [width, height] = mainWindow.getContentSize();
-  const chromeHeight = tab.htmlFullscreen ? 0 : CHROME_HEIGHT;
+  const chromeHeight = browserChromeHidden || tab.htmlFullscreen ? 0 : CHROME_HEIGHT;
   tab.view.setBounds({ x: 0, y: chromeHeight, width, height: Math.max(0, height - chromeHeight) });
 }
 
@@ -382,7 +397,7 @@ function syncTab(tab) {
   if (!tab || tab.view.webContents.isDestroyed()) return;
   const wc = tab.view.webContents;
   const next = {
-    url: wc.getURL(),
+    url: tab.error ? tab.error.url : wc.getURL(),
     title: wc.getTitle(),
     loading: wc.isLoading(),
     canGoBack: wc.navigationHistory.canGoBack(),
@@ -395,7 +410,7 @@ function syncTab(tab) {
 }
 
 function recordHistory(tab) {
-  if (!tab.url || isNewTab(tab.url) || tab.url.startsWith("devtools:")) return;
+  if (tab.error || !tab.url || isNewTab(tab.url) || tab.url.startsWith("devtools:")) return;
   history = [
     { title: tab.title || tab.url, url: tab.url, visitedAt: Date.now() },
     ...history.filter((item) => item.url !== tab.url),
@@ -459,8 +474,22 @@ function updateDownload(id, item, state) {
 }
 
 function handleShortcut(tab, event, input) {
-  if (!input.meta && !input.control) return;
   const key = input.key.toLowerCase();
+  if (key === "escape" && browserChromeHidden) {
+    event.preventDefault();
+    browserChromeHidden = false;
+    updateViewBounds();
+    sendState();
+    return;
+  }
+  if (key === "f11") {
+    event.preventDefault();
+    browserChromeHidden = !browserChromeHidden;
+    updateViewBounds();
+    sendState();
+    return;
+  }
+  if (!input.meta && !input.control) return;
   if (key === "l") {
     event.preventDefault();
     mainWindow.webContents.focus();
@@ -473,7 +502,7 @@ function handleShortcut(tab, event, input) {
     closeTab(tab.id);
   } else if (key === "r") {
     event.preventDefault();
-    input.shift ? tab.view.webContents.reloadIgnoringCache() : tab.view.webContents.reload();
+    reloadTab(tab, input.shift);
   } else if (key === "[") {
     event.preventDefault();
     if (tab.view.webContents.navigationHistory.canGoBack()) tab.view.webContents.navigationHistory.goBack();
@@ -483,9 +512,38 @@ function handleShortcut(tab, event, input) {
   }
 }
 
+function reloadTab(tab, ignoreCache = false) {
+  if (tab?.error) {
+    const failedUrl = tab.error.url;
+    tab.error = null;
+    tab.errorPageUrl = null;
+    return tab.view.webContents.loadURL(failedUrl);
+  }
+  if (ignoreCache) return tab?.view.webContents.reloadIgnoringCache();
+  return tab?.view.webContents.reload();
+}
+
 function wireTab(tab) {
   const wc = tab.view.webContents;
   const sync = () => syncTab(tab);
+  wc.on("did-start-navigation", (_event, url, _isInPlace, isMainFrame) => {
+    if (!isMainFrame || url === tab.errorPageUrl) return;
+    tab.error = null;
+    tab.errorPageUrl = null;
+  });
+  wc.on("did-fail-load", (_event, errorCode, errorDescription, url, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3 || !/^https?:\/\//i.test(url)) return;
+    tab.error = { url };
+    tab.errorPageUrl = navigationErrorPage(url, errorDescription);
+    tab.url = url;
+    tab.title = "Page failed to load";
+    sendState();
+    setTimeout(() => {
+      if (!wc.isDestroyed() && tab.error?.url === url) {
+        wc.loadURL(tab.errorPageUrl).catch((error) => console.warn("Could not show navigation error page:", error.message));
+      }
+    }, 0);
+  });
   wc.on("did-start-loading", sync);
   wc.on("did-stop-loading", () => {
     sync();
@@ -736,7 +794,7 @@ async function requestExtensionPermissions(extension, permissions) {
   ];
   const promptKey = `${extension.id}:${JSON.stringify([...requested].sort())}`;
   if (pendingPermissionPrompts.has(promptKey)) return pendingPermissionPrompts.get(promptKey);
-  const prompt = dialog.showMessageBox(mainWindow, {
+  const showPrompt = () => dialog.showMessageBox(mainWindow, {
     type: "question",
     buttons: ["Allow", "Deny"],
     defaultId: 0,
@@ -746,7 +804,9 @@ async function requestExtensionPermissions(extension, permissions) {
       ? requested.slice(0, 12).map((permission) => `• ${permission}`).join("\n")
       : "The extension requested additional access.",
     noLink: true,
-  }).then(result => result.response === 0).finally(() => pendingPermissionPrompts.delete(promptKey));
+  }).then(result => result.response === 0);
+  const prompt = (extensionPopupNavigation?.withActivePopupOpen(extension.id, showPrompt) || showPrompt())
+    .finally(() => pendingPermissionPrompts.delete(promptKey));
   pendingPermissionPrompts.set(promptKey, prompt);
   return prompt;
 }
@@ -841,10 +901,21 @@ async function handleCommand(_event, { type, payload }) {
       sendState();
       break;
     }
-    case "navigate": return tab?.view.webContents.loadURL(normalizeInput(payload?.value));
+    case "navigate": {
+      const url = normalizeInput(payload?.value);
+      return tab?.view.webContents.loadURL(url).catch((error) => {
+        if (!/^https?:\/\//i.test(url)) throw error;
+      });
+    }
+    case "toggle-window-fullscreen": mainWindow.setFullScreen(!mainWindow.isFullScreen()); break;
+    case "toggle-browser-chrome":
+      browserChromeHidden = !browserChromeHidden;
+      updateViewBounds();
+      sendState();
+      break;
     case "back": if (tab?.view.webContents.navigationHistory.canGoBack()) tab.view.webContents.navigationHistory.goBack(); break;
     case "forward": if (tab?.view.webContents.navigationHistory.canGoForward()) tab.view.webContents.navigationHistory.goForward(); break;
-    case "reload": tab?.view.webContents.reload(); break;
+    case "reload": return reloadTab(tab);
     case "stop": tab?.view.webContents.stop(); break;
     case "home": return tab?.view.webContents.loadURL(newTabUrl());
     case "toggle-bookmark": return toggleBookmark();
@@ -906,6 +977,8 @@ function createWindow() {
   });
 
   mainWindow.loadURL(rendererUrl);
+  mainWindow.on("enter-full-screen", () => { windowFullscreen = true; sendState(); });
+  mainWindow.on("leave-full-screen", () => { windowFullscreen = false; sendState(); });
   mainWindow.on("resize", updateViewBounds);
   mainWindow.on("focus", () => {
     if (Date.now() - lastUpdateCheck >= 5 * 60 * 1000) checkForUpdates();

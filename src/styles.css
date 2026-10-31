@@ -61,6 +61,7 @@ button { color: inherit; }
 }
 
 .app-shell.is-html-fullscreen .browser-chrome { display: none; }
+.app-shell.is-browser-chrome-hidden .browser-chrome { display: none; }
 
 .tab-strip {
   height: 53px;
@@ -72,6 +73,29 @@ button { color: inherit; }
 }
 
 .tab-strip > .icon-button { -webkit-app-region: no-drag; }
+
+.tab-context-menu {
+  position: fixed;
+  z-index: 30;
+  min-width: 195px;
+  padding: 5px;
+  border: 1px solid rgba(164, 144, 194, 0.2);
+  border-radius: 9px;
+  background: #211b29;
+  box-shadow: 0 12px 34px rgba(4, 3, 7, 0.38);
+  -webkit-app-region: no-drag;
+}
+.tab-context-menu button {
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #f7faf8;
+  text-align: left;
+  cursor: pointer;
+}
+.tab-context-menu button:hover { background: rgba(164, 144, 194, 0.15); }
 
 .traffic-light-space { flex: 0 0 62px; height: 40px; }
 .window-drag { flex: 1; height: 40px; }

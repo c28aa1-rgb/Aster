@@ -1,4 +1,5 @@
 const { app, session } = require("electron");
+const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { ElectronChromeExtensions } = require("electron-chrome-extensions");
@@ -15,13 +16,13 @@ const watchdog = setTimeout(() => {
 function waitFor(check, message, ms = 5000) {
   return new Promise((resolve, reject) => {
     const started = Date.now();
-    const poll = () => {
-      const result = check();
+    const poll = async () => {
+      const result = await check();
       if (result) resolve(result);
       else if (Date.now() - started >= ms) reject(new Error(message));
-      else setTimeout(poll, 25);
+      else setTimeout(() => poll().catch(reject), 25);
     };
-    poll();
+    poll().catch(reject);
   });
 }
 
@@ -40,7 +41,22 @@ app.whenReady().then(async () => {
     }, "VPN proxy credentials were not bridged from the extension worker");
     const resolvedProxy = await browserSession.resolveProxy("https://example.com/");
     if (!resolvedProxy.includes("127.0.0.1:65534")) throw new Error(`Unexpected proxy route: ${resolvedProxy}`);
-    console.log(`VPN_API_SMOKE_OK ${JSON.stringify({ ...state, resolvedProxy })}`);
+
+    const competingFixturePath = path.join(app.getPath("userData"), "competing-vpn-fixture");
+    fs.cpSync(path.join(__dirname, "vpn-fixture"), competingFixturePath, { recursive: true });
+    const competingWorkerPath = path.join(competingFixturePath, "background.js");
+    fs.writeFileSync(competingWorkerPath, fs.readFileSync(competingWorkerPath, "utf8").replace("65534", "65535"));
+    const competingExtension = await browserSession.extensions.loadExtension(competingFixturePath);
+    const competingWorkerStart = browserSession.serviceWorkers.startWorkerForScope(`chrome-extension://${competingExtension.id}/`);
+    competingWorkerStart?.catch(() => {});
+    const competingProxy = await waitFor(async () => {
+      const proxy = await browserSession.resolveProxy("https://example.com/");
+      return proxy.includes("127.0.0.1:65535") ? proxy : null;
+    }, "A later extension could not take control of the proxy", 5000);
+    if (proxyApi.getState().controllingExtensionId !== competingExtension.id) {
+      throw new Error("Proxy ownership did not move to the extension that set it last");
+    }
+    console.log(`VPN_API_SMOKE_OK ${JSON.stringify({ ...state, resolvedProxy, competingProxy, controllingExtensionId: proxyApi.getState().controllingExtensionId })}`);
     clearTimeout(watchdog);
     proxyApi.dispose();
     app.exit(0);

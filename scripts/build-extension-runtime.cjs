@@ -8,6 +8,7 @@ const electronContextMarker = `      disconnectNative
     };`;
 const chromeSettingMarker = "      class ChromeSetting {";
 const browserNamespaceMarker = "      delete globalThis.electron;";
+const permissionRequestMarker = 'request: invokeExtension2("permissions.request"),';
 const webRequestMarker = `              ...base,
               onHeadersReceived: new ExtensionEvent("webRequest.onHeadersReceived")`;
 const proxyApi = `        proxy: {
@@ -75,9 +76,30 @@ const proxyAuthEvent = `      class ProxyAuthEvent {
         }
       }
 `;
+const permissionRequestApi = `request: (...args) => {
+                const callback = typeof args[args.length - 1] === "function" ? args[args.length - 1] : null;
+                const originalClose = window.close;
+                let closeRequested = false;
+                window.close = () => { closeRequested = true; };
+                const restore = (granted) => {
+                  window.close = originalClose;
+                  if (closeRequested && !granted) originalClose.call(window);
+                  return granted;
+                };
+                const request = invokeExtension2("permissions.request");
+                if (callback) {
+                  args[args.length - 1] = (granted) => { restore(granted); callback(granted); };
+                  return request(...args);
+                }
+                return request(...args).then(restore, (error) => {
+                  window.close = originalClose;
+                  if (closeRequested) originalClose.call(window);
+                  throw error;
+                });
+              },`;
 
 const source = fs.readFileSync(sourcePath, "utf8");
-if (![marker, electronContextMarker, chromeSettingMarker, webRequestMarker, browserNamespaceMarker].every((value) => source.includes(value))) {
+if (![marker, electronContextMarker, chromeSettingMarker, webRequestMarker, browserNamespaceMarker, permissionRequestMarker].every((value) => source.includes(value))) {
   throw new Error("Unable to locate the extension API insertion point");
 }
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -85,6 +107,7 @@ const patched = source
   .replace(marker, `${proxyApi}${marker}`)
   .replace(electronContextMarker, `      disconnectNative,\n${proxyAuthBridge}    };`)
   .replace(chromeSettingMarker, `${proxyAuthEvent}${chromeSettingMarker}`)
+  .replace(permissionRequestMarker, permissionRequestApi)
   // Electron exposes a partial native `browser` namespace. Webextension-polyfill
   // trusts it and skips its own wrappers, so bridge the supported namespaces too.
   .replace(browserNamespaceMarker, `      if (globalThis.browser?.runtime?.id) {\n        globalThis.browser = { ...globalThis.browser, ...chrome };\n      }\n${browserNamespaceMarker}`)
