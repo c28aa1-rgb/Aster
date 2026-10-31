@@ -31,11 +31,11 @@ function compareVersions(left, right) {
   return 0;
 }
 
-function findAvailableRelease(releases, currentVersion, arch) {
+function findAvailableRelease(releases, currentVersion, arch, minimumVersion = null) {
   return releases
     .filter((release) => !release.draft && !release.prerelease)
     .map((release) => ({ ...release, version: String(release.tag_name || "").replace(/^v/i, "") }))
-    .filter((release) => /^\d+\.\d+\.\d+$/.test(release.version) && compareVersions(release.version, currentVersion) > 0)
+    .filter((release) => /^\d+\.\d+\.\d+$/.test(release.version) && compareVersions(release.version, currentVersion) > 0 && (!minimumVersion || compareVersions(release.version, minimumVersion) >= 0))
     .sort((left, right) => compareVersions(right.version, left.version))
     .map((release) => ({
       ...release,

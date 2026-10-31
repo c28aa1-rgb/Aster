@@ -17,6 +17,7 @@ const releases = [
 ];
 
 assert.equal(findAvailableRelease(releases, "0.4.3", "arm64")?.version, "0.4.5");
+assert.equal(findAvailableRelease(releases, "0.4.3", "arm64", "0.4.6"), undefined);
 assert.equal(findAvailableRelease(releases, "0.4.3", "x64")?.version, "0.4.4");
 assert.equal(findAvailableRelease(releases, "0.4.5", "arm64"), undefined);
 const updateInstaller = require("../build/update-dmg.cjs");

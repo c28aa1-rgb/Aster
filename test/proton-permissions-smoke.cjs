@@ -78,6 +78,19 @@ app.whenReady().then(async () => {
       const state = next.isDestroyed() ? "popup closed" : await next.webContents.executeJavaScript(`document.body.innerText.slice(0, 300)`);
       throw new Error(`Proton's Allow action did not open a Proton account tab: ${JSON.stringify({ state, prompts, popupErrors })}`);
     }
+    const savedGrants = JSON.parse(fs.readFileSync(path.join(profile, "extension-permissions.json"), "utf8"))[extension.id];
+    if (!savedGrants?.permissions.includes("proxy") || !savedGrants?.origins.includes("https://account.proton.me/*")) {
+      throw new Error("Allowed Proton permissions were not persisted");
+    }
+    next.destroy();
+    session.defaultSession.extensions.removeExtension(extension.id);
+    await delay(300);
+    const reloadedExtension = await session.defaultSession.extensions.loadExtension(extensionPath);
+    const verify = new BrowserWindow({ show: false, webPreferences: { session: session.defaultSession, sandbox: true, contextIsolation: true } });
+    await verify.loadURL(`chrome-extension://${reloadedExtension.id}/popup.html`);
+    await delay(1000);
+    const permissionsRestored = await verify.webContents.executeJavaScript(`browser.permissions.contains({permissions:['proxy'],origins:['https://account.proton.me/*']})`);
+    if (!permissionsRestored) throw new Error("Allowed Proton permissions did not survive an extension reload");
     console.log("PROTON_PERMISSIONS_PROMPT_OK");
   } catch (error) {
     console.error(error);

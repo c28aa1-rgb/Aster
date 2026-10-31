@@ -1,7 +1,7 @@
 const { app, BrowserWindow, WebContentsView, dialog, ipcMain, nativeTheme, session, shell } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { findAvailableRelease, parseAtomReleases, finishUpdateDownload, openDownloadedUpdate } = require("./update-release.cjs");
+const { compareVersions, findAvailableRelease, parseAtomReleases, finishUpdateDownload, openDownloadedUpdate } = require("./update-release.cjs");
 const { normalizeInput: normalizeNavigationInput } = require("./navigation-input.cjs");
 const { installChromeWebStore, uninstallExtension } = require("electron-chrome-web-store");
 const { ElectronChromeExtensions } = require("electron-chrome-extensions");
@@ -29,10 +29,12 @@ let bookmarks = [];
 let downloads = [];
 let remoteSuggestionsEnabled = true;
 let extensionPolicyDisabled = false;
+let minimumRequiredVersion = null;
 let extensionsDisabledUntilRestart = false;
 let restoringSession = false;
 let browserChromeHidden = false;
 let windowFullscreen = false;
+let extensionPermissionGrants = {};
 let nextDownloadId = 1;
 let theme = "light";
 
@@ -78,6 +80,7 @@ function savedHistoryPath() {
 function savedBookmarksPath() { return path.join(app.getPath("userData"), "bookmarks.json"); }
 function savedSessionPath() { return path.join(app.getPath("userData"), "session.json"); }
 function savedSettingsPath() { return path.join(app.getPath("userData"), "settings.json"); }
+function savedExtensionPermissionsPath() { return path.join(app.getPath("userData"), "extension-permissions.json"); }
 function savedDownloadsPath() { return path.join(app.getPath("userData"), "downloads.json"); }
 
 function readJson(file, fallback) {
@@ -116,6 +119,14 @@ function restoreBrowserData() {
   bookmarks = Array.isArray(savedBookmarks) ? savedBookmarks.filter((item) => typeof item?.url === "string").slice(0, 200) : [];
   const settings = readJson(savedSettingsPath(), {});
   remoteSuggestionsEnabled = settings.remoteSuggestionsEnabled !== false;
+  const savedPermissions = readJson(savedExtensionPermissionsPath(), {});
+  extensionPermissionGrants = Object.fromEntries(Object.entries(savedPermissions).flatMap(([id, grants]) => {
+    if (!Array.isArray(grants?.permissions) || !Array.isArray(grants?.origins)) return [];
+    return [[id, {
+      permissions: grants.permissions.filter((item) => typeof item === "string"),
+      origins: grants.origins.filter((item) => typeof item === "string"),
+    }]];
+  }));
   const savedDownloads = readJson(savedDownloadsPath(), []);
   downloads = Array.isArray(savedDownloads) ? savedDownloads.filter((item) => typeof item?.id === "string").map((item) =>
     item.state === "downloading" || item.state === "paused" ? { ...item, state: "interrupted" } : item,
@@ -198,14 +209,14 @@ async function checkForUpdates() {
     });
     if (!feedResponse.ok) throw new Error(`GitHub returned ${feedResponse.status}`);
     const feed = await feedResponse.text();
-    availableUpdate = findAvailableRelease(parseAtomReleases(feed, process.arch), app.getVersion(), process.arch);
+    availableUpdate = findAvailableRelease(parseAtomReleases(feed, process.arch), app.getVersion(), process.arch, minimumRequiredVersion);
     if (availableUpdate && !(await releaseAssetExists(availableUpdate))) availableUpdate = undefined;
     if (!availableUpdate) {
       const response = await fetch("https://api.github.com/repos/c28aa1-rgb/Aster/releases?per_page=30", {
         headers: { Accept: "application/vnd.github+json", "User-Agent": "Aster-Browser" },
       });
       if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
-      availableUpdate = findAvailableRelease(await response.json(), app.getVersion(), process.arch);
+      availableUpdate = findAvailableRelease(await response.json(), app.getVersion(), process.arch, minimumRequiredVersion);
       if (availableUpdate && !(await releaseAssetExists(availableUpdate))) availableUpdate = undefined;
     }
     updateState = availableUpdate
@@ -215,17 +226,28 @@ async function checkForUpdates() {
         version: availableUpdate.version,
         notes: availableUpdate.body || "No release notes were provided.",
         assetName: availableUpdate.asset.name,
+        required: Boolean(minimumRequiredVersion && compareVersions(app.getVersion(), minimumRequiredVersion) < 0),
         downloadStatus: availableUpdate.version === updateState.version ? updateState.downloadStatus : "idle",
         downloadedPath: availableUpdate.version === updateState.version ? updateState.downloadedPath : "",
         progress: availableUpdate.version === updateState.version ? updateState.progress : 0,
         error: "",
       }
-      : { checking: false, available: false, downloadStatus: "idle", downloadedPath: "", progress: 0, error: "" };
+      : {
+        checking: false,
+        available: false,
+        required: Boolean(minimumRequiredVersion && compareVersions(app.getVersion(), minimumRequiredVersion) < 0),
+        downloadStatus: "idle",
+        downloadedPath: "",
+        progress: 0,
+        error: minimumRequiredVersion && compareVersions(app.getVersion(), minimumRequiredVersion) < 0
+          ? `Required update ${minimumRequiredVersion} is not available for this Mac.` : "",
+      };
   } catch (error) {
     updateState = { ...updateState, checking: false, error: error.message || "Could not check for updates." };
     console.warn("Aster update check failed:", error.message);
   }
   emitUpdateState();
+  if (updateState.required && updateState.available && updateState.downloadStatus === "idle") downloadUpdate();
   return updateState;
 }
 
@@ -259,9 +281,9 @@ function startUpdateChecks() {
     });
   });
   const initialCheck = setTimeout(() => checkForUpdates(), 5000);
-  const periodicCheck = setInterval(() => {
-    checkForUpdates();
-    checkExtensionPolicy();
+  const periodicCheck = setInterval(async () => {
+    await checkExtensionPolicy();
+    await checkForUpdates();
   }, 15 * 60 * 1000);
   initialCheck.unref?.();
   periodicCheck.unref?.();
@@ -290,7 +312,10 @@ async function checkExtensionPolicy() {
       headers: { Accept: "application/json", "User-Agent": "Aster-Browser" },
     });
     if (!response.ok) return;
-    extensionPolicyDisabled = parseExtensionPolicy(await response.text());
+    const policy = parseExtensionPolicy(await response.text());
+    extensionPolicyDisabled = policy.disableExtensions;
+    minimumRequiredVersion = policy.minimumVersion;
+    updateState = { ...updateState, required: Boolean(minimumRequiredVersion && compareVersions(app.getVersion(), minimumRequiredVersion) < 0) };
     if (extensionPolicyDisabled) {
       extensionsDisabledUntilRestart = true;
       for (const extension of session.defaultSession.extensions.getAllExtensions()) {
@@ -740,6 +765,8 @@ async function removeExtension(id) {
     saveExtensions();
   }
   pinnedExtensionIds = pinnedExtensionIds.filter((pinnedId) => pinnedId !== id);
+  delete extensionPermissionGrants[id];
+  writeJson(savedExtensionPermissionsPath(), extensionPermissionGrants);
   savePinnedExtensions();
   refreshExtensions();
 }
@@ -788,10 +815,9 @@ function findTabByWebContents(webContents) {
 const pendingPermissionPrompts = new Map();
 
 async function requestExtensionPermissions(extension, permissions) {
-  const requested = [
-    ...(Array.isArray(permissions.permissions) ? permissions.permissions : []),
-    ...(Array.isArray(permissions.origins) ? permissions.origins : []),
-  ];
+  const requestedPermissions = Array.isArray(permissions.permissions) ? permissions.permissions.filter((item) => typeof item === "string") : [];
+  const requestedOrigins = Array.isArray(permissions.origins) ? permissions.origins.filter((item) => typeof item === "string") : [];
+  const requested = [...requestedPermissions, ...requestedOrigins];
   const promptKey = `${extension.id}:${JSON.stringify([...requested].sort())}`;
   if (pendingPermissionPrompts.has(promptKey)) return pendingPermissionPrompts.get(promptKey);
   const showPrompt = () => dialog.showMessageBox(mainWindow, {
@@ -806,9 +832,25 @@ async function requestExtensionPermissions(extension, permissions) {
     noLink: true,
   }).then(result => result.response === 0);
   const prompt = (extensionPopupNavigation?.withActivePopupOpen(extension.id, showPrompt) || showPrompt())
+    .then((allowed) => {
+      if (!allowed) return false;
+      const grants = extensionPermissionGrants[extension.id] ||= { permissions: [], origins: [] };
+      for (const permission of requestedPermissions) if (!grants.permissions.includes(permission)) grants.permissions.push(permission);
+      for (const origin of requestedOrigins) if (!grants.origins.includes(origin)) grants.origins.push(origin);
+      writeJson(savedExtensionPermissionsPath(), extensionPermissionGrants);
+      return true;
+    })
     .finally(() => pendingPermissionPrompts.delete(promptKey));
   pendingPermissionPrompts.set(promptKey, prompt);
   return prompt;
+}
+
+function restoreExtensionPermissions(extension) {
+  const saved = extensionPermissionGrants[extension.id];
+  const current = chromeExtensions?.api?.permissions?.permissionMap?.get(extension.id);
+  if (!saved || !current) return;
+  current.permissions = [...new Set([...current.permissions, ...saved.permissions])];
+  current.origins = [...new Set([...current.origins, ...saved.origins])];
 }
 
 async function initializeExtensionSupport() {
@@ -869,6 +911,7 @@ async function initializeExtensionSupport() {
   installProxyExtensionApi(chromeExtensions, browserSession);
   extensionPopupNavigation = installExtensionPopupNavigation(chromeExtensions, createTab);
   browserSession.extensions.on("extension-loaded", (_event, extension) => {
+    restoreExtensionPermissions(extension);
     if (extensionPolicyDisabled || extensionsDisabledUntilRestart) browserSession.extensions.removeExtension(extension.id);
     else refreshExtensions();
   });

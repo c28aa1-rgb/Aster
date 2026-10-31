@@ -335,6 +335,7 @@ function UpdatePanel({ update, onCheck, onDownload, onOpen }) {
         <pre>{update.notes || "No release notes were provided."}</pre>
       </section>
       <div className="update-download">
+        {update.required && <p>A required update will download automatically. Aster will close when it is ready; open the disk image and replace Aster in Applications.</p>}
         <button className="primary-button" type="button" disabled={update.checking || downloading || (downloaded && !update.error)} onClick={onDownload}>
           {downloaded ? <CheckCircle2 size={17} /> : <CircleArrowDown size={17} />}
           {downloaded ? update.error ? "Download again" : "Download complete" : downloading ? `Downloading ${update.progress || 0}%` : "Download update"}
